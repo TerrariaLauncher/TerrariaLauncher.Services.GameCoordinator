@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.31321.278
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TerrariaLauncher.Services.GameCoordinator", "TerrariaLauncher.Services.GameCoordinator\TerrariaLauncher.Services.GameCoordinator.csproj", "{0A66B1E4-A1D0-4B0E-A1E7-C0474330756E}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{0A66B1E4-A1D0-4B0E-A1E7-C0474330756E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0A66B1E4-A1D0-4B0E-A1E7-C0474330756E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0A66B1E4-A1D0-4B0E-A1E7-C0474330756E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0A66B1E4-A1D0-4B0E-A1E7-C0474330756E}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {93974AC1-A69A-4722-83A5-D4801F3D2C64}
+	EndGlobalSection
+EndGlobal
