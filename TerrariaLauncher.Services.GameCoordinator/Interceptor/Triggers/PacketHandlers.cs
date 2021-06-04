@@ -51,6 +51,5 @@ namespace TerrariaLauncher.Services.GameCoordinator
         #endregion
 
         public HandlerList<Interceptor, PacketHandlerArgs> PlayerInfoHandlers = new HandlerList<Interceptor, PacketHandlerArgs>();
-
     }
 }

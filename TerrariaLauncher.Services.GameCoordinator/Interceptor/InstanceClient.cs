@@ -59,14 +59,19 @@ namespace TerrariaLauncher.Services.GameCoordinator
             await this.socket.ConnectAsync(endPoint, cancellationToken);
         }
 
-        public Task Disconect()
+        public void Disconect()
         {
-            this.socket.Shutdown(SocketShutdown.Both);
-            this.socket.Disconnect(false);
-            this.socket.Close();
-            this.socket.Dispose();
+            try
+            {
+                this.socket.Shutdown(SocketShutdown.Both);
+                this.socket.Disconnect(false);
+                this.socket.Close();
+                this.socket.Dispose();
+            }
+            catch (ObjectDisposedException)
+            {
 
-            return Task.CompletedTask;
+            }
         }
 
         private async Task ReadDataFromSocket(CancellationToken cancellationToken)
@@ -153,22 +158,23 @@ namespace TerrariaLauncher.Services.GameCoordinator
 
         private async Task WriteDataToSocket(CancellationToken cancellationToken)
         {
-            while (true)
+            while (await this.packetChannelReader.WaitToReadAsync(cancellationToken))
             {
-                TerrariaPacket packet = null;
-                try
+                while (this.packetChannelReader.TryRead(out var packet))
                 {
-                    packet = await this.packetChannelReader.ReadAsync(cancellationToken);
-                    var buffer = packet.Buffer;
-                    do
+                    try
                     {
-                        int numSendBytes = await this.socket.SendAsync(buffer, SocketFlags.None, cancellationToken);
-                        buffer = buffer.Slice(numSendBytes);
-                    } while (!buffer.IsEmpty);
-                }
-                finally
-                {
-                    if (packet is not null) this.terrariaPacketPool.Return(packet);
+                        var buffer = packet.Buffer;
+                        do
+                        {
+                            int numSendBytes = await this.socket.SendAsync(buffer, SocketFlags.None, cancellationToken);
+                            buffer = buffer.Slice(numSendBytes);
+                        } while (!buffer.IsEmpty);
+                    }
+                    finally
+                    {
+                        this.terrariaPacketPool.Return(packet);
+                    }
                 }
             }
         }
