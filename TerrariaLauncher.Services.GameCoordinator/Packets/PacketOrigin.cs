@@ -6,10 +6,9 @@ using System.Threading.Tasks;
 
 namespace TerrariaLauncher.Services.GameCoordinator
 {
-    interface IObjectPoolPolicy<T>
+    public enum PacketOrigin
     {
-        int RetainedSize { get; }
-        T Create();
-        bool Return(T instance);
+        Client,
+        Server
     }
 }

@@ -34,7 +34,14 @@ namespace TerrariaLauncher.Services.GameCoordinator
         {
             if (this.policy.Return(instance))
             {
-                this.instances.Add(instance);
+                if (this.instances.Count > this.policy.RetainedSize)
+                {
+                    return;
+                }
+                else
+                {
+                    this.instances.Add(instance);
+                }
             }
         }
     }

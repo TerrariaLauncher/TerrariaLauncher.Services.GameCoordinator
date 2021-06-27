@@ -1,0 +1,33 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net5.0</TargetFramework>
+    <RootNamespace>TerrariaLauncher.Services.GameCoordinator.Hub</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BCrypt.Net-Next" Version="4.0.2" />
+    <PackageReference Include="Grpc.AspNetCore" Version="2.38.0" />
+    <PackageReference Include="RabbitMQ.Client" Version="6.2.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Protobuf Include="..\..\TerrariaLauncher.Protos\services\game_coordinator\hub\**\*.proto" ProtoRoot="..\..\TerrariaLauncher.Protos" GrpcServices="Server">
+      <Link>TerrariaLauncher.Protos\services\game_coordinator\hub\%(RecursiveDir)%(Filename)%(Extension)</Link>
+    </Protobuf>
+    <Protobuf Include="..\..\TerrariaLauncher.Protos\*.proto" ProtoRoot="..\..\TerrariaLauncher.Protos" GrpcServices="None">
+      <Link>TerrariaLauncher.Protos\%(RecursiveDir)%(Filename)%(Extension)</Link>
+    </Protobuf>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\TerrariaLauncher.Commons.Base\TerrariaLauncher.Commons.Base.csproj" />
+    <ProjectReference Include="..\..\TerrariaLauncher.Commons\TerrariaLauncher.Commons.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Database\Commands\Handlers\" />
+    <Folder Include="Database\QueryDTOs\" />
+  </ItemGroup>
+
+</Project>

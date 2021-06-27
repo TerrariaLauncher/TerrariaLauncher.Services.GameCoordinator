@@ -20,16 +20,25 @@ namespace TerrariaLauncher.Services.GameCoordinator
             {
                 FullMode = BoundedChannelFullMode.Wait
             };
-            this.PacketChannelForTerrariaClient = Channel.CreateBounded<TerrariaPacket>(channelOptions);
-            this.PacketChannelForInstanceClient = Channel.CreateBounded<TerrariaPacket>(channelOptions);
-            this.ProcessedPacketChannelForTerrariaClient = Channel.CreateBounded<TerrariaPacket>(channelOptions);
-            this.ProcessedPacketChannelForInstanceClient = Channel.CreateBounded<TerrariaPacket>(channelOptions);
+            this.TerrariaClientRaw = Channel.CreateBounded<TerrariaPacket>(channelOptions);
+            this.TerrariaClientProcessed = Channel.CreateBounded<TerrariaPacket>(channelOptions);
+            this.InstanceClientRaw = Channel.CreateBounded<TerrariaPacket>(channelOptions);
+            this.InstanceClientProcessed = Channel.CreateBounded<TerrariaPacket>(channelOptions);
         }
 
-        public Channel<TerrariaPacket> PacketChannelForTerrariaClient { get; }
-        public Channel<TerrariaPacket> PacketChannelForInstanceClient { get; }
-        public Channel<TerrariaPacket> ProcessedPacketChannelForTerrariaClient { get; }
-        public Channel<TerrariaPacket> ProcessedPacketChannelForInstanceClient { get; }
+        public Channel<TerrariaPacket> TerrariaClientRaw { get; }
+
+        /// <summary>
+        /// Packet written into this channel will be sent directly to connecting client.
+        /// </summary>
+        public Channel<TerrariaPacket> TerrariaClientProcessed { get; }
+
+        public Channel<TerrariaPacket> InstanceClientRaw { get; }
+
+        /// <summary>
+        /// Packet written into this channel will be sent directly to connecting server.
+        /// </summary>
+        public Channel<TerrariaPacket> InstanceClientProcessed { get; }
     }
 
     class Interceptor
@@ -40,108 +49,117 @@ namespace TerrariaLauncher.Services.GameCoordinator
         private InterceptorChannels interceptorChannels;
 
         private ObjectPool<TerrariaPacket> terrariaPacketPool;
-        private ObjectPool<PacketHandlerArgs> packetHandlerArgsPool;
-        private PacketHandlers packetHandlers;
-
+        private PacketEvents packetEvents;
+        private TerrariaClientSocketEvents terrariaClientSocketEvents;
         public Interceptor(
             TerrariaClient terrariaClient,
             InstanceClient instanceClient,
             InterceptorChannels interceptorChannels,
             ObjectPool<TerrariaPacket> terrariaPacketPool,
-            ObjectPool<PacketHandlerArgs> packetHandlerArgsPool,
-            PacketHandlers packetHandlers)
+            PacketEvents packetEvents,
+            TerrariaClientSocketEvents terrariaClientSocketEvents)
         {
             this.terrariaClient = terrariaClient;
             this.instanceClient = instanceClient;
             this.interceptorChannels = interceptorChannels;
             this.terrariaPacketPool = terrariaPacketPool;
-            this.packetHandlerArgsPool = packetHandlerArgsPool;
-            this.packetHandlers = packetHandlers;
+            this.packetEvents = packetEvents;
+            this.terrariaClientSocketEvents = terrariaClientSocketEvents;
         }
 
         public TerrariaClient TerrariaClient { get => this.terrariaClient; }
         public InstanceClient InstanceClient { get => this.instanceClient; }
         public InterceptorChannels InterceptorChannels { get => this.interceptorChannels; }
 
-        public async Task Loop(CancellationToken cancellationToken)
+        internal async Task Loop(CancellationToken cancellationToken)
         {
             using (var cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
             {
-                var inputLoopTask = this.InputLoop(cancellationTokenSource.Token);
-                var outputLoopTask = this.OutputLoop(cancellationTokenSource.Token);
-                var terrariaClientLoopTask = this.terrariaClient.Loop(cancellationTokenSource.Token);
-
-                await Task.WhenAny(inputLoopTask, outputLoopTask, terrariaClientLoopTask);
-
-                this.terrariaClient.Disconnect();
-
-                this.interceptorChannels.PacketChannelForInstanceClient.Writer.Complete();
-                this.interceptorChannels.ProcessedPacketChannelForTerrariaClient.Writer.Complete();
-
-                // Allow interceptor process remaining packets send from client.
-                this.interceptorChannels.PacketChannelForTerrariaClient.Writer.Complete();
-                await this.interceptorChannels.PacketChannelForTerrariaClient.Reader.Completion;
-                await inputLoopTask;
-
-                // Allow instance client receive remaining processed packets.
-                this.interceptorChannels.ProcessedPacketChannelForInstanceClient.Writer.Complete();
-                await Task.WhenAny(
-                    this.interceptorChannels.ProcessedPacketChannelForInstanceClient.Reader.Completion,
-                    Task.Delay(1000));
-                cancellationTokenSource.Cancel();
-
-                // Return all packets retain in exchange channels to pool.
-                await foreach (var packet in this.interceptorChannels.PacketChannelForInstanceClient.Reader.ReadAllAsync())
+                try
                 {
-                    this.terrariaPacketPool.Return(packet);
+                    var forcedToDisconnect = await this.terrariaClientSocketEvents.OnTerrariaClientSocketConnected(this, cancellationTokenSource.Token);
+                    
+                    Task outputLoopTask = Task.CompletedTask;
+                    Task inputLoopTask = Task.CompletedTask;
+                    Task terrariaClientInputLoop = Task.CompletedTask;
+                    if (!forcedToDisconnect)
+                    {
+                        outputLoopTask = this.OutputLoop(cancellationTokenSource.Token);
+                        inputLoopTask = this.InputLoop(cancellationTokenSource.Token);
+                        terrariaClientInputLoop = this.terrariaClient.InputLoop(cancellationTokenSource.Token);
+                    }
+                    Task terrariaClientOutputLoop = this.terrariaClient.OutputLoop(cancellationTokenSource.Token);
+
+                    await Task.WhenAny(inputLoopTask, outputLoopTask, terrariaClientInputLoop, terrariaClientOutputLoop);
+
+                    // Stop receiving and sending more packets with Terraria Client.
+                    this.interceptorChannels.TerrariaClientRaw.Writer.TryComplete();
+                    this.interceptorChannels.TerrariaClientProcessed.Writer.TryComplete();
+                    // Stop receiving packet from Instance Client.
+                    this.interceptorChannels.InstanceClientRaw.Writer.TryComplete();
+                    await inputLoopTask;
+                    await outputLoopTask;
+
+                    // Allow Instance Client receive remaining processed packets.
+                    this.interceptorChannels.InstanceClientProcessed.Writer.TryComplete();
+                    await Task.WhenAny(
+                        this.interceptorChannels.InstanceClientProcessed.Reader.Completion,
+                        Task.Delay(1000));
+                    cancellationTokenSource.Cancel();
+
+                    this.terrariaClient.Disconnect();
+                    this.instanceClient.Disconect();
+                    await this.terrariaClientSocketEvents.OnTerrariaClientSocketDisconnected(this, cancellationTokenSource.Token);
                 }
-                await foreach (var packet in this.interceptorChannels.PacketChannelForTerrariaClient.Reader.ReadAllAsync())
+                finally
                 {
-                    this.terrariaPacketPool.Return(packet);
-                }
-                await foreach (var packet in this.interceptorChannels.ProcessedPacketChannelForInstanceClient.Reader.ReadAllAsync())
-                {
-                    this.terrariaPacketPool.Return(packet);
-                }
-                await foreach (var packet in this.interceptorChannels.ProcessedPacketChannelForTerrariaClient.Reader.ReadAllAsync())
-                {
-                    this.terrariaPacketPool.Return(packet);
+                    this.interceptorChannels.InstanceClientRaw.Writer.TryComplete();
+                    this.interceptorChannels.TerrariaClientRaw.Writer.TryComplete();
+                    this.interceptorChannels.InstanceClientProcessed.Writer.TryComplete();
+                    this.interceptorChannels.TerrariaClientProcessed.Writer.TryComplete();
+
+                    // Return all packets retain in exchange channels to pool.
+                    await foreach (var packet in this.interceptorChannels.InstanceClientRaw.Reader.ReadAllAsync())
+                    {
+                        this.terrariaPacketPool.Return(packet);
+                    }
+                    await foreach (var packet in this.interceptorChannels.TerrariaClientRaw.Reader.ReadAllAsync())
+                    {
+                        this.terrariaPacketPool.Return(packet);
+                    }
+                    await foreach (var packet in this.interceptorChannels.InstanceClientProcessed.Reader.ReadAllAsync())
+                    {
+                        this.terrariaPacketPool.Return(packet);
+                    }
+                    await foreach (var packet in this.interceptorChannels.TerrariaClientProcessed.Reader.ReadAllAsync())
+                    {
+                        this.terrariaPacketPool.Return(packet);
+                    }
                 }
             }
         }
 
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="terrariaPacket"></param>
-        /// <returns>Return true if the packet should be skipped. Return false when packet should be send to server.</returns>
-        private async Task<bool> OnPacketArrive(TerrariaPacket terrariaPacket, CancellationToken cancellationToken)
-        {
-            var args = this.packetHandlerArgsPool.Get();
-            args.CancellationToken = cancellationToken;
-            args.TerrariaPacket = terrariaPacket;
-
-            await this.packetHandlers.Handle(this, args);
-            var ignored = args.Ignored;
-            this.packetHandlerArgsPool.Return(args);
-
-            return ignored;
-        }
-
         private async Task InputLoop(CancellationToken cancellationToken)
         {
-            while (await this.interceptorChannels.PacketChannelForTerrariaClient.Reader.WaitToReadAsync(cancellationToken))
+            while (await this.interceptorChannels.TerrariaClientRaw.Reader.WaitToReadAsync(cancellationToken))
             {
-                while (this.interceptorChannels.PacketChannelForTerrariaClient.Reader.TryRead(out var packet))
+                while (this.interceptorChannels.TerrariaClientRaw.Reader.TryRead(out var packet))
                 {
-                    if (await this.OnPacketArrive(packet, cancellationToken))
+                    if (await this.packetEvents.OnPacketReceived(this, packet, cancellationToken))
                     {
-                        // Return early, packet is ignored.
+                        // Return the packet to pool because the packet is ignored or cancellation token is in cancel state.
                         this.terrariaPacketPool.Return(packet);
                     }
                     else
                     {
-                        await this.interceptorChannels.ProcessedPacketChannelForInstanceClient.Writer.WriteAsync(packet);
+                        try
+                        {
+                            await this.interceptorChannels.InstanceClientProcessed.Writer.WriteAsync(packet, cancellationToken);
+                        }
+                        catch
+                        {
+                            this.terrariaPacketPool.Return(packet);
+                        }
                     }
                 }
             }
@@ -149,17 +167,25 @@ namespace TerrariaLauncher.Services.GameCoordinator
 
         private async Task OutputLoop(CancellationToken cancellationToken)
         {
-            while (await this.interceptorChannels.PacketChannelForInstanceClient.Reader.WaitToReadAsync(cancellationToken))
+            while (await this.interceptorChannels.InstanceClientRaw.Reader.WaitToReadAsync(cancellationToken))
             {
-                while (this.interceptorChannels.PacketChannelForInstanceClient.Reader.TryRead(out var packet))
+                while (this.interceptorChannels.InstanceClientRaw.Reader.TryRead(out var packet))
                 {
-                    if (await this.OnPacketArrive(packet, cancellationToken))
+                    if (await this.packetEvents.OnPacketReceived(this, packet, cancellationToken))
                     {
+                        // Return the packet to pool because the packet is ignored or cancellation token is in cancel state.
                         this.terrariaPacketPool.Return(packet);
                     }
                     else
                     {
-                        await this.interceptorChannels.ProcessedPacketChannelForTerrariaClient.Writer.WriteAsync(packet);
+                        try
+                        {
+                            await this.interceptorChannels.TerrariaClientProcessed.Writer.WriteAsync(packet, cancellationToken);
+                        }
+                        catch
+                        {
+                            this.terrariaPacketPool.Return(packet);
+                        }
                     }
                 }
             }

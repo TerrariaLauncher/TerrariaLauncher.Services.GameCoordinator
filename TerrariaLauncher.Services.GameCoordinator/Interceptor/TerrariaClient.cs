@@ -4,6 +4,7 @@ using System.Buffers;
 using System.Collections.Generic;
 using System.IO.Pipelines;
 using System.Linq;
+using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
@@ -17,8 +18,9 @@ namespace TerrariaLauncher.Services.GameCoordinator
         private Pipe socketPipe;
 
         private ObjectPool<TerrariaPacket> terrariaPacketPool;
-        private System.Threading.Channels.ChannelReader<TerrariaPacket> packetChannelReader;
-        private System.Threading.Channels.ChannelWriter<TerrariaPacket> packetChannelWriter;
+        private InterceptorChannels interceptorChannels;
+
+        private bool disconnected = false;
 
         public TerrariaClient(
             ObjectPool<TerrariaPacket> terrariaPacketPool,
@@ -26,39 +28,53 @@ namespace TerrariaLauncher.Services.GameCoordinator
         {
             this.socketPipe = new Pipe();
             this.terrariaPacketPool = terrariaPacketPool;
-
-            this.packetChannelReader = interceptorChannels.ProcessedPacketChannelForTerrariaClient.Reader;
-            this.packetChannelWriter = interceptorChannels.PacketChannelForTerrariaClient.Writer;
+            this.interceptorChannels = interceptorChannels;
         }
 
-        public void SetSocket(Socket terrariaClient)
+        public IPEndPoint IPEndPoint { get; protected set; }
+
+        internal void SetSocket(Socket terrariaClient)
         {
             this.socket = terrariaClient;
+            this.IPEndPoint = this.socket.RemoteEndPoint as IPEndPoint;
         }
 
-        public async Task Loop(CancellationToken cancellationToken)
+        internal async Task InputLoop(CancellationToken cancellationToken)
         {
             if (this.socket is null) throw new InvalidOperationException("Terraria Client Socket is not set.");
 
             var task1 = this.ReadDataFromSocket(cancellationToken);
             var task2 = this.ParsePacket(cancellationToken);
-            var task3 = this.WriteDataToSocket(cancellationToken);
 
-            await Task.WhenAny(task1, task2, task3);
+            await Task.WhenAll(task1, task2);
+        }
+
+        internal Task OutputLoop(CancellationToken cancellationToken)
+        {
+            if (this.socket is null) throw new InvalidOperationException("Terraria Client Socket is not set.");
+
+            var task3 = this.WriteDataToSocket(cancellationToken);
+            return task3;
         }
 
         public void Disconnect()
         {
+            if (this.disconnected) return;
+
             try
             {
                 this.socket.Shutdown(SocketShutdown.Both);
                 this.socket.Disconnect(false);
                 this.socket.Close();
-                this.socket.Dispose();
             }
-            catch (ObjectDisposedException)
+            catch
             {
 
+            }
+            finally
+            {
+                this.socket.Dispose();
+                this.disconnected = true;
             }
         }
 
@@ -108,7 +124,14 @@ namespace TerrariaLauncher.Services.GameCoordinator
                         packet.Length = (int)packetBuffer.Length;
                         packet.Origin = PacketOrigin.Client;
                         packetBuffer.CopyTo(packet.Buffer.Span);
-                        await this.packetChannelWriter.WriteAsync(packet, cancellationToken);
+                        try
+                        {
+                            await this.interceptorChannels.TerrariaClientRaw.Writer.WriteAsync(packet, cancellationToken);
+                        }
+                        catch
+                        {
+                            this.terrariaPacketPool.Return(packet);
+                        }
                     }
                     this.socketPipe.Reader.AdvanceTo(buffer.Start, buffer.End);
 
@@ -146,9 +169,9 @@ namespace TerrariaLauncher.Services.GameCoordinator
 
         private async Task WriteDataToSocket(CancellationToken cancellationToken)
         {
-            while (await this.packetChannelReader.WaitToReadAsync(cancellationToken))
+            while (await this.interceptorChannels.TerrariaClientProcessed.Reader.WaitToReadAsync(cancellationToken))
             {
-                while (this.packetChannelReader.TryRead(out var packet))
+                while (this.interceptorChannels.TerrariaClientProcessed.Reader.TryRead(out var packet))
                 {
                     try
                     {
@@ -175,7 +198,7 @@ namespace TerrariaLauncher.Services.GameCoordinator
             {
                 if (disposing)
                 {
-                    this.socket.Dispose();
+                    this.Disconnect();
                 }
 
                 disposed = true;

@@ -6,9 +6,34 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Protobuf Include="..\..\TerrariaLauncher.Protos\services\game_coordinator\hub\**\*.proto" ProtoRoot="..\..\TerrariaLauncher.Protos" GrpcServices="Client">
+      <Link>TerrariaLauncher.Protos\services\game_coordinator\hub\%(RecursiveDir)%(Filename)%(Extension)</Link>
+    </Protobuf>
+    <Protobuf Include="..\..\TerrariaLauncher.Protos\*.proto" ProtoRoot="..\..\TerrariaLauncher.Protos" GrpcServices="None">
+      <Link>TerrariaLauncher.Protos\%(RecursiveDir)%(Filename)%(Extension)</Link>
+    </Protobuf>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Google.Protobuf" Version="3.17.3" />
+    <PackageReference Include="Grpc.Net.ClientFactory" Version="2.38.0" />
+    <PackageReference Include="Grpc.Tools" Version="2.38.0">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="5.0.1" />
-    <PackageReference Include="Microsoft.Extensions.ObjectPool" Version="5.0.6" />
+    <PackageReference Include="Microsoft.Extensions.ObjectPool" Version="5.0.7" />
+    <PackageReference Include="RabbitMQ.Client" Version="6.2.1" />
     <PackageReference Include="System.IO.Pipelines" Version="5.0.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\TerrariaLauncher.Commons.Base\TerrariaLauncher.Commons.Base.csproj" />
+    <ProjectReference Include="..\..\TerrariaLauncher.Commons\TerrariaLauncher.Commons.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Plugins\Defaults\Tracking\" />
   </ItemGroup>
 
 </Project>

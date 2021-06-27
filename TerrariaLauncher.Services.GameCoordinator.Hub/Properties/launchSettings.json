@@ -1,0 +1,13 @@
+﻿{
+  "profiles": {
+    "TerrariaLauncher.Services.GameCoordinator.Hub": {
+      "commandName": "Project",
+      "dotnetRunMessages": "true",
+      "launchBrowser": false,
+      "applicationUrl": "http://localhost:3300",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      }
+    }
+  }
+}

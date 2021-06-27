@@ -37,16 +37,21 @@ namespace TerrariaLauncher.Services.GameCoordinator
             this.serviceScopeFactory = serviceScopeFactory;
         }
 
-        public void Start()
+        public async Task Start()
         {
             this.cancellationTokenSource = new CancellationTokenSource();
             this.cancellationToken = this.cancellationTokenSource.Token;
 
-            var endpoint = new IPEndPoint(IPAddress.Parse(this.options.Host), this.options.Port);
+
+            var bindIpAddress = await NetworkUtils.GetIPv4(this.options.Host);
+            IPEndPoint bindEndPoint = new IPEndPoint(bindIpAddress, this.options.Port);
+
             this.listenSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-            this.listenSocket.Bind(endpoint);
+            this.listenSocket.Bind(bindEndPoint);
             this.listenSocket.Listen(1024);
             _ = Task.Run(() => this.Loop(this.cancellationToken), this.cancellationToken);
+
+            Console.Title = bindEndPoint.ToString();
         }
 
         private async Task Loop(CancellationToken cancellationToken)
@@ -60,7 +65,7 @@ namespace TerrariaLauncher.Services.GameCoordinator
                 var terrariaClient = scope.ServiceProvider.GetRequiredService<TerrariaClient>();
                 terrariaClient.SetSocket(acceptSocket);
                 Interlocked.Increment(ref this.numConnectingClients);
-                
+
                 var interceptTask = interceptor.Loop(cancellationToken);
                 _ = interceptTask.ContinueWith(task =>
                 {
@@ -70,12 +75,19 @@ namespace TerrariaLauncher.Services.GameCoordinator
             }
         }
 
-        public void Stop()
+        public event Func<Task> Stopped;
+
+        public async Task Stop()
         {
             this.cancellationTokenSource.Cancel();
             this.cancellationTokenSource.Dispose();
             this.listenSocket.Close();
             this.listenSocket.Dispose();
+
+            foreach (var invocation in this.Stopped.GetInvocationList())
+            {
+                await ((Func<Task>)invocation)();
+            }
         }
     }
 }
