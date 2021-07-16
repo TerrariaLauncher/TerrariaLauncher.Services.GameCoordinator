@@ -8,10 +8,11 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using TerrariaLauncher.Services.GameCoordinator.Packets.Payloads.Commons;
+using TerrariaLauncher.Services.GameCoordinator.Packets.Payloads.Modules;
 
 namespace TerrariaLauncher.Services.GameCoordinator.Packets.Payloads
 {
-    class NetModuleDeserializer<TPayload> : StructureDeserializer<NetModule<TPayload>> where TPayload : class, IStructure
+    class NetModuleDeserializer<TPayload> : StructureDeserializer<NetModule<TPayload>> where TPayload : class, IModuleStructure
     {
         IStructureDeserializer<TPayload> payloadDeserializer;
         public NetModuleDeserializer(IStructureDeserializer<TPayload> payloadDeserializer)
@@ -24,7 +25,7 @@ namespace TerrariaLauncher.Services.GameCoordinator.Packets.Payloads
             var netModule = new NetModule<TPayload>();
             var readResult = await pipeReader.ReadAsync(cancellationToken);
             var buffer = readResult.Buffer;
-            netModule.ModuleId = (NetModule.Type)ParseModuleId(ref buffer);
+            netModule.ModuleId = (NetModuleId)ParseModuleId(ref buffer);
             pipeReader.AdvanceTo(buffer.Start);
             netModule.Payload = await this.payloadDeserializer.Deserialize(pipeReader, cancellationToken).ConfigureAwait(false);
             return netModule;

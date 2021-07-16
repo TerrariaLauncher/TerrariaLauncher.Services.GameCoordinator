@@ -1,5 +1,4 @@
-﻿using Microsoft.Extensions.ObjectPool;
-using System;
+﻿using System;
 using System.Buffers;
 using System.Collections.Generic;
 using System.IO.Pipelines;
@@ -9,8 +8,9 @@ using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using TerrariaLauncher.Services.GameCoordinator.Pools;
 
-namespace TerrariaLauncher.Services.GameCoordinator
+namespace TerrariaLauncher.Services.GameCoordinator.Proxy
 {
     class TerrariaClient : IDisposable
     {
@@ -33,13 +33,13 @@ namespace TerrariaLauncher.Services.GameCoordinator
 
         public IPEndPoint IPEndPoint { get; protected set; }
 
-        internal void SetSocket(Socket terrariaClient)
+        internal void Connect(Socket terrariaClient)
         {
             this.socket = terrariaClient;
             this.IPEndPoint = this.socket.RemoteEndPoint as IPEndPoint;
         }
 
-        internal async Task InputLoop(CancellationToken cancellationToken)
+        internal async Task ReadPacketsFromSocket(CancellationToken cancellationToken)
         {
             if (this.socket is null) throw new InvalidOperationException("Terraria Client Socket is not set.");
 
@@ -49,7 +49,7 @@ namespace TerrariaLauncher.Services.GameCoordinator
             await Task.WhenAll(task1, task2);
         }
 
-        internal Task OutputLoop(CancellationToken cancellationToken)
+        internal Task WritePacketsToSocket(CancellationToken cancellationToken)
         {
             if (this.socket is null) throw new InvalidOperationException("Terraria Client Socket is not set.");
 

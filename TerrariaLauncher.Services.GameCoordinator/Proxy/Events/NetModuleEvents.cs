@@ -9,11 +9,11 @@ using TerrariaLauncher.Services.GameCoordinator.Packets.Payloads.Commons;
 using TerrariaLauncher.Services.GameCoordinator.Packets.Payloads.Modules;
 using TerrariaLauncher.Services.GameCoordinator.Packets.Payloads.Structures;
 
-namespace TerrariaLauncher.Services.GameCoordinator
+namespace TerrariaLauncher.Services.GameCoordinator.Proxy.Events
 {
     class NetModuleHandlerArgs : PacketHandlerArgs
     {
-        public NetModule.Type NetModuleType { get; set; }
+        public NetModuleId NetModuleId { get; set; }
         public Memory<byte> NetModulePayload { get; set; }
     }
 
@@ -29,14 +29,14 @@ namespace TerrariaLauncher.Services.GameCoordinator
 
     class NetModuleEvents
     {
-        private Dictionary<NetModule.Type, Handler<Interceptor, NetModuleHandlerArgs>> handlers;
+        private Dictionary<NetModuleId, Handler<Interceptor, NetModuleHandlerArgs>> handlers;
 
         IStructureDeserializerLocator structureDeserializerLocator;
         public NetModuleEvents(IStructureDeserializerLocator structureDeserializerLocator)
         {
-            this.handlers = new Dictionary<NetModule.Type, Handler<Interceptor, NetModuleHandlerArgs>>()
+            this.handlers = new Dictionary<NetModuleId, Handler<Interceptor, NetModuleHandlerArgs>>()
             {
-                { NetModule.Type.Text, this.HandleTextModuleAndChatModule }
+                { NetModuleId.Text, this.HandleTextModuleAndChatModule }
             };
 
             this.structureDeserializerLocator = structureDeserializerLocator;
@@ -62,7 +62,7 @@ namespace TerrariaLauncher.Services.GameCoordinator
                 Handled = args.Handled,
                 TerrariaPacket = args.TerrariaPacket,
                 Ignored = args.Ignored,
-                NetModuleType = netModuleType.Value,
+                NetModuleId = netModuleType.Value,
                 NetModulePayload = netModulePayload
             };
 
@@ -71,7 +71,7 @@ namespace TerrariaLauncher.Services.GameCoordinator
             args.Ignored = netModuleHandlerArgs.Ignored;
         }
 
-        private static bool TryReadNetModuleType(TerrariaPacket terrariaPacket, out NetModule.Type? netModuleType)
+        private static bool TryReadNetModuleType(TerrariaPacket terrariaPacket, out NetModuleId? netModuleType)
         {
             var netModuleIdBytes = terrariaPacket.Buffer.Span.Slice(TerrariaPacket.PayloadPosition, sizeof(ushort));
             if (!System.Buffers.Binary.BinaryPrimitives.TryReadUInt16LittleEndian(netModuleIdBytes, out var netModuleId)
@@ -81,7 +81,7 @@ namespace TerrariaLauncher.Services.GameCoordinator
                 return false;
             }
 
-            netModuleType = (NetModule.Type)netModuleId;
+            netModuleType = (NetModuleId)netModuleId;
             return true;
         }
 
@@ -106,7 +106,7 @@ namespace TerrariaLauncher.Services.GameCoordinator
                     Handled = args.Handled,
                     TerrariaPacket = args.TerrariaPacket,
                     Ignored = args.Ignored,
-                    NetModuleType = args.NetModuleType,
+                    NetModuleId = args.NetModuleId,
                     ChatModule = await ParseChatModule(args.NetModulePayload, args.CancellationToken).ConfigureAwait(false)
                 };
 
@@ -122,7 +122,7 @@ namespace TerrariaLauncher.Services.GameCoordinator
                     Handled = args.Handled,
                     TerrariaPacket = args.TerrariaPacket,
                     Ignored = args.Ignored,
-                    NetModuleType = args.NetModuleType,
+                    NetModuleId = args.NetModuleId,
                     TextModule = ParseTextModule(args.NetModulePayload.Span)
                 };
 

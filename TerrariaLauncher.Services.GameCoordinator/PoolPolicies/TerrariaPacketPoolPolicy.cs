@@ -5,8 +5,9 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using TerrariaLauncher.Services.GameCoordinator.Packets.Payloads.Commons;
+using TerrariaLauncher.Services.GameCoordinator.Pools;
 
-namespace TerrariaLauncher.Services.GameCoordinator
+namespace TerrariaLauncher.Services.GameCoordinator.PoolPolicies
 {
     class TerrariaPacketPoolPolicy : IObjectPoolPolicy<TerrariaPacket>
     {
@@ -24,7 +25,10 @@ namespace TerrariaLauncher.Services.GameCoordinator
 
         public TerrariaPacket Create()
         {
-            return new TerrariaPacket(ArrayPool<byte>.Shared, this.structureSerializerDispatcher, this.structureDeserializerDispatcher);
+            return new TerrariaPacket(
+                ArrayPool<byte>.Shared,
+                this.structureSerializerDispatcher,
+                this.structureDeserializerDispatcher);
         }
 
         public bool Return(TerrariaPacket instance)

@@ -7,18 +7,20 @@ using System.Threading;
 using System.Threading.Tasks;
 using TerrariaLauncher.Commons.DomainObjects;
 using TerrariaLauncher.Services.GameCoordinator.Packets.Payloads;
-using TerrariaLauncher.Services.GameCoordinator.Packets.Payloads.Commons;
+using TerrariaLauncher.Services.GameCoordinator.Pools;
+using TerrariaLauncher.Services.GameCoordinator.Proxy;
+using TerrariaLauncher.Services.GameCoordinator.Proxy.Events;
 
 namespace TerrariaLauncher.Services.GameCoordinator.Plugins
 {
     class Bans : Plugin
     {
-        TerrariaClientSocketEvents terrariaClientSocketEvents;
+        TerrariaClientEvents terrariaClientSocketEvents;
         PacketEvents packetEvents;
         ObjectPool<TerrariaPacket> terrariaPacketPool;
         TerrariaLauncher.Protos.Services.GameCoordinator.Hub.Bans.BansClient bansClient;
         public Bans(
-            TerrariaClientSocketEvents terrariaClientSocketEvents,
+            TerrariaClientEvents terrariaClientSocketEvents,
             PacketEvents packetEvents,
             ObjectPool<TerrariaPacket> terrariaPacketPool,
             TerrariaLauncher.Protos.Services.GameCoordinator.Hub.Bans.BansClient bansClient)
@@ -62,7 +64,7 @@ namespace TerrariaLauncher.Services.GameCoordinator.Plugins
                 Text = $"Ticket #{checkBannedResponse.Ticket}: {checkBannedResponse.Reason}"
             };
 
-            await disconnectPacket.SetPayload(PacketOrigin.Server, disconnectPayload, args.CancellationToken).ConfigureAwait(false);
+            await disconnectPacket.SerializePayload(PacketOrigin.Server, disconnectPayload, args.CancellationToken).ConfigureAwait(false);
 
             await interceptor.InterceptorChannels.TerrariaClientProcessed.Writer.WriteAsync(disconnectPacket, args.CancellationToken);
             args.ForcedToDisconnect = true;
@@ -70,7 +72,7 @@ namespace TerrariaLauncher.Services.GameCoordinator.Plugins
 
         public Task OnUUIDPacket(Interceptor interceptor, PacketHandlerArgs args)
         {
-            
+            return Task.CompletedTask;
         }
     }
 }

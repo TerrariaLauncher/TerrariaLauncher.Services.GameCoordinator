@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using System;
 using System.Buffers;
 using System.Collections.Generic;
@@ -10,7 +11,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace TerrariaLauncher.Services.GameCoordinator
+namespace TerrariaLauncher.Services.GameCoordinator.Proxy
 {
     class ServerOptions
     {
@@ -31,9 +32,9 @@ namespace TerrariaLauncher.Services.GameCoordinator
 
         private IServiceScopeFactory serviceScopeFactory;
 
-        public Server(ServerOptions options, IServiceScopeFactory serviceScopeFactory)
+        public Server(IOptions<ServerOptions> options, IServiceScopeFactory serviceScopeFactory)
         {
-            this.options = options;
+            this.options = options.Value;
             this.serviceScopeFactory = serviceScopeFactory;
         }
 
@@ -63,10 +64,10 @@ namespace TerrariaLauncher.Services.GameCoordinator
                 var acceptSocket = await this.listenSocket.AcceptAsync();
                 var interceptor = scope.ServiceProvider.GetRequiredService<Interceptor>();
                 var terrariaClient = scope.ServiceProvider.GetRequiredService<TerrariaClient>();
-                terrariaClient.SetSocket(acceptSocket);
+                terrariaClient.Connect(acceptSocket);
                 Interlocked.Increment(ref this.numConnectingClients);
 
-                var interceptTask = interceptor.Loop(cancellationToken);
+                var interceptTask = interceptor.ProcessPackets(cancellationToken);
                 _ = interceptTask.ContinueWith(task =>
                 {
                     Interlocked.Decrement(ref this.numConnectingClients);

@@ -14,7 +14,7 @@ namespace TerrariaLauncher.Services.GameCoordinator.Packets.Payloads.Modules
     /// <summary>
     /// NetModule [1] - Text: Client -> Server
     /// </summary>
-    class ChatModule : Structure
+    class ChatModule : ModuleStructure
     {
         public enum CommandType
         {
@@ -56,5 +56,7 @@ namespace TerrariaLauncher.Services.GameCoordinator.Packets.Payloads.Modules
 
         public CommandType Command { get; set; }
         public string Text { get; set; }
+
+        public override NetModuleId NetModuleId => NetModuleId.Text;
     }
 }

@@ -1,6 +1,6 @@
-﻿{
+{
   "profiles": {
-    "TerrariaLauncher.Services.GameCoordinator.Hub": {
+    "TerrariaLauncher.Services.GameCoordinator": {
       "commandName": "Project",
       "dotnetRunMessages": "true",
       "launchBrowser": false,

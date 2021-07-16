@@ -4,30 +4,31 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using TerrariaLauncher.Services.GameCoordinator.Packets.Payloads.Commons;
+using TerrariaLauncher.Services.GameCoordinator.Packets.Payloads.Modules;
 
 namespace TerrariaLauncher.Services.GameCoordinator.Packets.Payloads
 {
+    public enum NetModuleId : ushort
+    {
+        Liquid = 0,
+        Text = 1,
+        Ping = 2,
+        Ambience = 3,
+        Bestiary = 4,
+        CreativeUnlocks = 5,
+        CreativePowers = 6,
+        CreativeUnlocksPowerReport = 7,
+        TeleportPylon = 8,
+        Particles = 9,
+        CreativePowerPermissions = 10
+    }
+
     static class NetModule
     {
-        public enum Type : ushort
-        {
-            Liquid = 0,
-            Text = 1,
-            Ping = 2,
-            Ambience = 3,
-            Bestiary = 4,
-            CreativeUnlocks = 5,
-            CreativePowers = 6,
-            CreativeUnlocksPowerReport = 7,
-            TeleportPylon = 8,
-            Particles = 9,
-            CreativePowerPermissions = 10
-        }
-
         private static HashSet<ushort> netModuleIds = new HashSet<ushort>();
         static NetModule()
         {
-            foreach (var type in Enum.GetValues<NetModule.Type>())
+            foreach (var type in Enum.GetValues<NetModuleId>())
             {
                 netModuleIds.Add((ushort)type);
             }
@@ -39,11 +40,11 @@ namespace TerrariaLauncher.Services.GameCoordinator.Packets.Payloads
         }
     }
 
-    class NetModule<TPayload> : PacketStructure where TPayload: class, IStructure
+    class NetModule<TPayload> : PacketStructure where TPayload : class, IModuleStructure
     {
         public override PacketOpCode OpCode => PacketOpCode.NetModule;
 
-        public NetModule.Type ModuleId { get; set; }
+        public NetModuleId ModuleId { get; set; }
         public TPayload Payload { get; set; }
     }
 }

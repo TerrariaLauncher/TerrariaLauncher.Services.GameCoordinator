@@ -5,21 +5,44 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using TerrariaLauncher.Commons.DomainObjects;
+using TerrariaLauncher.Services.GameCoordinator.Plugins.Helpers;
+using TerrariaLauncher.Services.GameCoordinator.Proxy;
+using TerrariaLauncher.Services.GameCoordinator.Proxy.Events;
 
 namespace TerrariaLauncher.Services.GameCoordinator.Plugins.Defaults
 {
     class Routing : Plugin
     {
         TerrariaLauncher.Protos.Services.GameCoordinator.Hub.Instances.InstancesClient instancesClient;
-        public Routing(TerrariaLauncher.Protos.Services.GameCoordinator.Hub.Instances.InstancesClient instancesClient)
+        TextCommands textCommands;
+        TextMessageHelper textMessageHelper;
+        TerrariaPacketPoolHelper terrariaPacketPoolHelper;
+
+        TextCommand routingCommand;
+        public Routing(
+            TerrariaLauncher.Protos.Services.GameCoordinator.Hub.Instances.InstancesClient instancesClient,
+            TextCommands textCommands,
+            TextMessageHelper textMessageHelper,
+            TerrariaPacketPoolHelper terrariaPacketPoolHelper)
         {
             this.instancesClient = instancesClient;
+            this.textCommands = textCommands;
+            this.textMessageHelper = textMessageHelper;
+            this.terrariaPacketPoolHelper = terrariaPacketPoolHelper;
+
+            this.routingCommand = new TextCommand()
+            {
+                Command = ">",
+                Handler = this.OnRoutingCommand
+            };
         }
 
         public Dictionary<string, List<Instance>> Realms = new Dictionary<string, List<Instance>>(StringComparer.OrdinalIgnoreCase);
 
         public override async Task Load(CancellationToken cancellationToken = default)
         {
+            this.textCommands.Register(routingCommand);
+
             var getInstancesResponse = await this.instancesClient.GetInstancesAsync(new Protos.Services.GameCoordinator.Hub.GetInstancesRequest(), cancellationToken: cancellationToken);
             foreach (var instance in getInstancesResponse.Instances)
             {
@@ -30,11 +53,7 @@ namespace TerrariaLauncher.Services.GameCoordinator.Plugins.Defaults
                     Enabled = instance.Enabled,
                     Host = instance.Host,
                     Port = instance.Port,
-                    RestPort = instance.RestPort,
-                    GrpcPort = instance.GrpcPort,
-                    GrpcTls = instance.GrpcTls,
                     Version = instance.Version,
-                    Platform = instance.Platform,
                     Realm = instance.Realm
                 };
 
@@ -54,13 +73,26 @@ namespace TerrariaLauncher.Services.GameCoordinator.Plugins.Defaults
 
         public override Task Unload(CancellationToken cancellationToken = default)
         {
+            this.textCommands.Deregister(routingCommand);
             this.Realms.Clear();
             return Task.CompletedTask;
         }
 
-        public async Task OnRoutingCommand()
+        public async Task OnRoutingCommand(Interceptor sender, TextCommandHandlerArgs args)
         {
-            
+            if (!(args.Arguments.Length > 0)) return;
+            string realm = args.Arguments.Span[0];
+
+            if (!this.Realms.ContainsKey(realm))
+            {
+                var errorMessage = await this.textMessageHelper.CreateErrorMessage("Realm does not exist.", args.CancellationToken);
+                await this.terrariaPacketPoolHelper.ReturnPoolIfFailed(errorMessage, async (errorMessage) =>
+                    await sender.InterceptorChannels.TerrariaClientRaw.Writer.WriteAsync(errorMessage, args.CancellationToken)
+                );
+                return;
+            }
+
+            await sender.InstanceClient.Connect(realm, args.CancellationToken);
         }
     }
 }

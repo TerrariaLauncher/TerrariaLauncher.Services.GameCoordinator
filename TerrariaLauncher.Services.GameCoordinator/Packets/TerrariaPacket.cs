@@ -8,10 +8,11 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using TerrariaLauncher.Services.GameCoordinator.Packets.Payloads.Commons;
+using TerrariaLauncher.Services.GameCoordinator.Pools;
 
 namespace TerrariaLauncher.Services.GameCoordinator
 {
-    class TerrariaPacket
+    class TerrariaPacket: IDisposable
     {
         private static readonly HashSet<byte> opByteValues = new HashSet<byte>();
 
@@ -41,7 +42,9 @@ namespace TerrariaLauncher.Services.GameCoordinator
 
         IStructureSerializerDispatcher structureSerializerDispatcher;
         IStructureDeserializerDispatcher structureDeserializerDispatcher;
-        public TerrariaPacket(ArrayPool<byte> arrayPool,
+
+        public TerrariaPacket(
+            ArrayPool<byte> arrayPool,
             IStructureSerializerDispatcher structureSerializerDispatcher,
             IStructureDeserializerDispatcher structureDeserializerDispatcher)
         {
@@ -141,7 +144,7 @@ namespace TerrariaLauncher.Services.GameCoordinator
             reader.AdvanceTo(readResult.Buffer.End);
         }
 
-        public async Task SetPayload<TStructure>(PacketOrigin origin, TStructure structure, CancellationToken cancellationToken = default)
+        public async Task SerializePayload<TStructure>(PacketOrigin origin, TStructure structure, CancellationToken cancellationToken = default)
         where TStructure : IPacketStructure
         {
             var pipe = new Pipe();
@@ -160,6 +163,20 @@ namespace TerrariaLauncher.Services.GameCoordinator
             var structure = await this.structureDeserializerDispatcher.Deserialize<TStructure>(pipe.Reader, cancellationToken).ConfigureAwait(false);
             await pipe.Reader.CompleteAsync().ConfigureAwait(false);
             return structure;
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                this.Length = 0;
+            }
+        }
+
+        public void Dispose()
+        {
+            Dispose(disposing: true);
+            GC.SuppressFinalize(this);
         }
     }
 }

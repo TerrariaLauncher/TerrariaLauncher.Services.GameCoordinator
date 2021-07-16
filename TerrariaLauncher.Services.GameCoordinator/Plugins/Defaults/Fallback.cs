@@ -6,14 +6,17 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using TerrariaLauncher.Commons.DomainObjects;
+using TerrariaLauncher.Services.GameCoordinator.Pools;
+using TerrariaLauncher.Services.GameCoordinator.Proxy;
+using TerrariaLauncher.Services.GameCoordinator.Proxy.Events;
 
 namespace TerrariaLauncher.Services.GameCoordinator.Plugins
 {
-    class Fallback: Plugin
+    class Fallback : Plugin
     {
+        List<Instance> entrances = new List<Instance>();
         PacketEvents packetEvents;
         ObjectPool<TerrariaPacket> terrariaPacketPool;
-        Instance entranceInstance;
 
         public Fallback(
             PacketEvents packetEvents,
@@ -21,28 +24,22 @@ namespace TerrariaLauncher.Services.GameCoordinator.Plugins
         {
             this.packetEvents = packetEvents;
             this.terrariaPacketPool = terrariaPacketPool;
-            this.entranceInstance = new Instance()
-            {
-                Id = 1,
-                Host = "localhost",
-                Port = 7776,
-                Name = "Entrance"                
-            };
         }
-        
+
         public override Task Load(CancellationToken cancellationToken = default)
-        {
-            this.packetEvents.ConnectHandlers.Register(this.OnConnect);
+        {            
+            this.packetEvents.ConnectHandlers.Register(this.OnConnectPacket);
+            this.packetEvents.DisconnectHandlers.Register(this.OnDisconnectPacket);
             return Task.CompletedTask;
         }
 
         public override Task Unload(CancellationToken cancellationToken = default)
         {
-            this.packetEvents.ConnectHandlers.Deregister(this.OnConnect);
+            this.packetEvents.ConnectHandlers.Deregister(this.OnConnectPacket);
             return Task.CompletedTask;
         }
 
-        public async Task OnConnect(Interceptor sender, PacketHandlerArgs args)
+        public async Task OnConnectPacket(Interceptor sender, PacketHandlerArgs args)
         {
             // Only trigger when there is a connect packet from the client.
             // This only happens when the client connect to server for the first time.
@@ -51,11 +48,10 @@ namespace TerrariaLauncher.Services.GameCoordinator.Plugins
                 return;
             }
 
-            await sender.InstanceClient.Connect(this.entranceInstance, args.CancellationToken);
-            _ = Task.Run(() => sender.InstanceClient.Loop(args.CancellationToken));
+            await sender.InstanceClient.Connect("Entrance", args.CancellationToken);
         }
 
-        public async Task OnDisconnect(Interceptor sender, PacketHandlerArgs args)
+        public async Task OnDisconnectPacket(Interceptor sender, PacketHandlerArgs args)
         {
             if (args.TerrariaPacket.Origin != PacketOrigin.Server)
             {
@@ -66,12 +62,7 @@ namespace TerrariaLauncher.Services.GameCoordinator.Plugins
             args.Ignored = true;
             args.Handled = true;
 
-            // if (sender.InstanceClient.)
-
-            sender.InstanceClient.Disconect();
-
-            await sender.InstanceClient.Connect(this.entranceInstance, args.CancellationToken);
-            _ = Task.Run(() => sender.InstanceClient.Loop(args.CancellationToken));
+            await sender.InstanceClient.Connect("Entrance", args.CancellationToken);
         }
     }
 }

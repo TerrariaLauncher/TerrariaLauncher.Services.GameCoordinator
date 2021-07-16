@@ -4,6 +4,8 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using TerrariaLauncher.Services.GameCoordinator.Proxy;
+using TerrariaLauncher.Services.GameCoordinator.Proxy.Events;
 
 namespace TerrariaLauncher.Services.GameCoordinator.Plugins
 {

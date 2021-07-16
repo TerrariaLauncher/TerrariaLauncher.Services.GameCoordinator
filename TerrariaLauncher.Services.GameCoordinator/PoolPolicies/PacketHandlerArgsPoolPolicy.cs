@@ -3,8 +3,10 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using TerrariaLauncher.Services.GameCoordinator.Pools;
+using TerrariaLauncher.Services.GameCoordinator.Proxy.Events;
 
-namespace TerrariaLauncher.Services.GameCoordinator
+namespace TerrariaLauncher.Services.GameCoordinator.PoolPolicies
 {
     class PacketHandlerArgsPoolPolicy : IObjectPoolPolicy<PacketHandlerArgs>
     {

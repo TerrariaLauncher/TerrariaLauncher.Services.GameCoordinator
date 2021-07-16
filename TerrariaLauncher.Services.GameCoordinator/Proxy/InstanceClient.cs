@@ -9,43 +9,46 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using TerrariaLauncher.Commons.DomainObjects;
+using TerrariaLauncher.Services.GameCoordinator.Pools;
+using TerrariaLauncher.Services.GameCoordinator.Proxy.Events;
 
-namespace TerrariaLauncher.Services.GameCoordinator
+namespace TerrariaLauncher.Services.GameCoordinator.Proxy
 {
     class InstanceClient : IDisposable
     {
-        private Instance instance;
-        private Socket socket;
-        private Pipe socketPipe;
+        Instance instance;
+        Socket socket;
+        Pipe socketPipe;
 
-        private ObjectPool<TerrariaPacket> terrariaPacketPool;
-        private InterceptorChannels interceptorChannels;
+        InstanceClientEvents instanceClientEvents;
+        ObjectPool<TerrariaPacket> terrariaPacketPool;
+        InterceptorChannels interceptorChannels;
+
+        SemaphoreSlim semaphore;
 
         public InstanceClient(
+            InstanceClientEvents instanceClientEvents,
             ObjectPool<TerrariaPacket> terrariaPacketPool,
             InterceptorChannels interceptorChannels
             )
         {
+            this.instanceClientEvents = instanceClientEvents;
             this.terrariaPacketPool = terrariaPacketPool;
             this.interceptorChannels = interceptorChannels;
+
+            this.semaphore = new SemaphoreSlim(1, 1);
         }
 
-        internal async Task Loop(CancellationToken cancellationToken)
+        internal async Task Connect(string realm, CancellationToken cancellationToken)
         {
-            using (var cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
-            {
-                var task1 = this.ReadDataFromSocket(cancellationTokenSource.Token);
-                var task2 = this.ParsePacket(cancellationTokenSource.Token);
-                var task3 = this.WriteDataToSocket(cancellationTokenSource.Token);
-
-                await Task.WhenAny(task1, task2, task3);
-
-                cancellationTokenSource.Cancel();
-            }
+            var instance = await this.instanceClientEvents.OnConnectToRealm(this, realm, cancellationToken);
+            if (instance is null) throw new ArgumentException($"Could not find any server instance of the realm '{realm}'.", nameof(realm));
+            await this.Connect(instance, cancellationToken);
         }
 
-        public async Task Connect(Instance instance, CancellationToken cancellationToken)
+        private async Task Connect(Instance instance, CancellationToken cancellationToken)
         {
+            await this.instanceClientEvents.OnConnectToInstance(this, instance, cancellationToken);
             this.instance = instance;
 
             if (this.socketPipe is null)
@@ -61,9 +64,15 @@ namespace TerrariaLauncher.Services.GameCoordinator
             var instanceIPEndPoint = new IPEndPoint(instanceIpAddress, this.instance.Port);
             this.socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
             await this.socket.ConnectAsync(instanceIPEndPoint, cancellationToken);
+
+            _ = Task.Run(() =>
+            {
+                _ = this.ReadPacketsFromSocket(cancellationToken);
+                _ = this.WritePacketsToSocket(cancellationToken);
+            });
         }
 
-        public void Disconect()
+        internal void Disconect()
         {
             if (this.socket is null) return;
 
@@ -82,6 +91,20 @@ namespace TerrariaLauncher.Services.GameCoordinator
                 this.socket.Dispose();
                 this.socket = null;
             }
+        }
+
+        internal async Task ReadPacketsFromSocket(CancellationToken cancellationToken)
+        {
+            var task1 = this.ReadDataFromSocket(cancellationToken);
+            var task2 = this.ParsePacket(cancellationToken);
+
+            await Task.WhenAll(task1, task2);
+        }
+
+        internal Task WritePacketsToSocket(CancellationToken cancellationToken)
+        {
+            var task3 = this.WriteDataToSocket(cancellationToken);
+            return task3;
         }
 
         private async Task ReadDataFromSocket(CancellationToken cancellationToken)

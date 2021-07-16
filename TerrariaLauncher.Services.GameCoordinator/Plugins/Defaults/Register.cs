@@ -11,12 +11,12 @@ namespace TerrariaLauncher.Services.GameCoordinator.Plugins
     {
         public override Task Load(CancellationToken cancellationToken = default)
         {
-            throw new NotImplementedException();
+            return Task.CompletedTask;
         }
 
         public override Task Unload(CancellationToken cancellationToken = default)
         {
-            throw new NotImplementedException();
+            return Task.CompletedTask;
         }
     }
 }

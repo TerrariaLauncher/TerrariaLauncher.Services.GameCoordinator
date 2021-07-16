@@ -12,8 +12,8 @@ namespace TerrariaLauncher.Services.GameCoordinator.Hub.GrpcServices
 {
     class Bans : TerrariaLauncher.Protos.Services.GameCoordinator.Hub.Bans.BansBase
     {
-        QueryDispatcher queryDispatcher;
-        public Bans(QueryDispatcher queryDispatcher)
+        IQueryDispatcher queryDispatcher;
+        public Bans(IQueryDispatcher queryDispatcher)
         {
             this.queryDispatcher = queryDispatcher;
         }

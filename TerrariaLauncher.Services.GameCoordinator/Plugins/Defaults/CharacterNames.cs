@@ -7,6 +7,8 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using TerrariaLauncher.Services.GameCoordinator.Packets.Payloads;
+using TerrariaLauncher.Services.GameCoordinator.Proxy;
+using TerrariaLauncher.Services.GameCoordinator.Proxy.Events;
 
 namespace TerrariaLauncher.Services.GameCoordinator.Plugins
 {
@@ -15,12 +17,12 @@ namespace TerrariaLauncher.Services.GameCoordinator.Plugins
         private ConcurrentDictionary<Interceptor, string> characterNames = new ConcurrentDictionary<Interceptor, string>();
 
         PacketEvents packetEvents;
-        TerrariaClientSocketEvents terrariaClientSocketEvents;
+        TerrariaClientEvents terrariaClientSocketEvents;
         Server server;
 
         public CharacterNames(
             PacketEvents packetEvents,
-            TerrariaClientSocketEvents terrariaClientSocketEvents,
+            TerrariaClientEvents terrariaClientSocketEvents,
             Server server)
         {
             this.packetEvents = packetEvents;

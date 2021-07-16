@@ -4,8 +4,9 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using TerrariaLauncher.Services.GameCoordinator.Pools;
 
-namespace TerrariaLauncher.Services.GameCoordinator
+namespace TerrariaLauncher.Services.GameCoordinator.Proxy.Events
 {
     class PacketHandlerArgs : HandlerArgs
     {
@@ -28,6 +29,7 @@ namespace TerrariaLauncher.Services.GameCoordinator
 
             this.packetHandlerLookup = new Dictionary<PacketOpCode, Handler<Interceptor, PacketHandlerArgs>>() {
                 { PacketOpCode.Connect, this.HandleConnectPacket },
+                { PacketOpCode.Disconnect, this.HandleDisconnectPacket },
                 { PacketOpCode.PlayerInfo, this.HandlePlayerInfoPacket },
                 { PacketOpCode.NetModule, this.HandleNetModulePacket }
             };
@@ -72,6 +74,15 @@ namespace TerrariaLauncher.Services.GameCoordinator
         private Task HandleConnectPacket(Interceptor sender, PacketHandlerArgs args)
         {
             return this.ConnectHandlers.Invoke(sender, args);
+        }
+        #endregion
+
+        #region Disconnect
+        public HandlerList<Interceptor, PacketHandlerArgs> DisconnectHandlers = new HandlerList<Interceptor, PacketHandlerArgs>();
+
+        private Task HandleDisconnectPacket(Interceptor sender, PacketHandlerArgs args)
+        {
+            return this.DisconnectHandlers.Invoke(sender, args);
         }
         #endregion
 
