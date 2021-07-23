@@ -27,8 +27,4 @@
     <ProjectReference Include="..\..\TerrariaLauncher.Commons\TerrariaLauncher.Commons.csproj" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Folder Include="Plugins\Defaults\Tracking\" />
-  </ItemGroup>
-
 </Project>

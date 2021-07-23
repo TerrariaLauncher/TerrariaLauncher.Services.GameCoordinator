@@ -14,7 +14,6 @@ namespace TerrariaLauncher.Services.GameCoordinator.Plugins
 {
     class Fallback : Plugin
     {
-        List<Instance> entrances = new List<Instance>();
         PacketEvents packetEvents;
         ObjectPool<TerrariaPacket> terrariaPacketPool;
 

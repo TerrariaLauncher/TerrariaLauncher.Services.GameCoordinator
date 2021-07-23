@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.Extensions.Logging;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -23,16 +24,36 @@ namespace TerrariaLauncher.Services.GameCoordinator.Proxy.Events
         private ObjectPool<PacketHandlerArgs> packetHandlerArgsPool;
         private Dictionary<PacketOpCode, Handler<Interceptor, PacketHandlerArgs>> packetHandlerLookup;
 
-        public PacketEvents(ObjectPool<PacketHandlerArgs> packetHandlerArgsPool)
+        ILoggerFactory loggerFactory;
+
+        public PacketEvents(
+            ObjectPool<PacketHandlerArgs> packetHandlerArgsPool,
+            ILoggerFactory loggerFactory)
         {
             this.packetHandlerArgsPool = packetHandlerArgsPool;
-
             this.packetHandlerLookup = new Dictionary<PacketOpCode, Handler<Interceptor, PacketHandlerArgs>>() {
                 { PacketOpCode.Connect, this.HandleConnectPacket },
                 { PacketOpCode.Disconnect, this.HandleDisconnectPacket },
                 { PacketOpCode.PlayerInfo, this.HandlePlayerInfoPacket },
                 { PacketOpCode.NetModule, this.HandleNetModulePacket }
             };
+            this.loggerFactory = loggerFactory;
+            
+            this.PacketReceivedHandlers = new HandlerList<Interceptor, PacketHandlerArgs>(
+                this.loggerFactory.CreateLogger($"{typeof(PacketEvents).FullName}.{nameof(PacketReceivedHandlers)}")
+            );
+            this.ConnectHandlers = new HandlerList<Interceptor, PacketHandlerArgs>(
+                this.loggerFactory.CreateLogger($"{typeof(PacketEvents).FullName}.{nameof(ConnectHandlers)}")
+            );
+            this.DisconnectHandlers = new HandlerList<Interceptor, PacketHandlerArgs>(
+                this.loggerFactory.CreateLogger($"{typeof(PacketEvents).FullName}.{nameof(DisconnectHandlers)}")
+            );
+            this.PlayerInfoHandlers = new HandlerList<Interceptor, PacketHandlerArgs>(
+                this.loggerFactory.CreateLogger($"{typeof(PacketEvents).FullName}.{nameof(PlayerInfoHandlers)}")
+            );
+            this.NetModuleHandlers = new HandlerList<Interceptor, PacketHandlerArgs>(
+                this.loggerFactory.CreateLogger($"{typeof(PacketEvents).FullName}.{nameof(NetModuleHandlers)}")
+            );
         }
 
         private async Task SpecificPacketHandle(Interceptor source, PacketHandlerArgs args)
@@ -45,7 +66,7 @@ namespace TerrariaLauncher.Services.GameCoordinator.Proxy.Events
             await handler(source, args);
         }
 
-        public HandlerList<Interceptor, PacketHandlerArgs> PacketReceivedHandlers = new HandlerList<Interceptor, PacketHandlerArgs>();
+        public readonly HandlerList<Interceptor, PacketHandlerArgs> PacketReceivedHandlers;
 
         /// <summary>
         /// 
@@ -69,7 +90,7 @@ namespace TerrariaLauncher.Services.GameCoordinator.Proxy.Events
         }
 
         #region Connect
-        public HandlerList<Interceptor, PacketHandlerArgs> ConnectHandlers = new HandlerList<Interceptor, PacketHandlerArgs>();
+        public readonly HandlerList<Interceptor, PacketHandlerArgs> ConnectHandlers;
 
         private Task HandleConnectPacket(Interceptor sender, PacketHandlerArgs args)
         {
@@ -78,7 +99,7 @@ namespace TerrariaLauncher.Services.GameCoordinator.Proxy.Events
         #endregion
 
         #region Disconnect
-        public HandlerList<Interceptor, PacketHandlerArgs> DisconnectHandlers = new HandlerList<Interceptor, PacketHandlerArgs>();
+        public readonly HandlerList<Interceptor, PacketHandlerArgs> DisconnectHandlers;
 
         private Task HandleDisconnectPacket(Interceptor sender, PacketHandlerArgs args)
         {
@@ -87,7 +108,7 @@ namespace TerrariaLauncher.Services.GameCoordinator.Proxy.Events
         #endregion
 
         #region PlayerInfo
-        public HandlerList<Interceptor, PacketHandlerArgs> PlayerInfoHandlers = new HandlerList<Interceptor, PacketHandlerArgs>();
+        public readonly HandlerList<Interceptor, PacketHandlerArgs> PlayerInfoHandlers;
 
         private Task HandlePlayerInfoPacket(Interceptor sender, PacketHandlerArgs args)
         {
@@ -96,7 +117,7 @@ namespace TerrariaLauncher.Services.GameCoordinator.Proxy.Events
         #endregion
 
         #region NetModuleHandlers
-        public HandlerList<Interceptor, PacketHandlerArgs> NetModuleHandlers = new HandlerList<Interceptor, PacketHandlerArgs>();
+        public readonly HandlerList<Interceptor, PacketHandlerArgs> NetModuleHandlers;
 
         private Task HandleNetModulePacket(Interceptor trigger, PacketHandlerArgs args)
         {

@@ -21,11 +21,6 @@ using TerrariaLauncher.Services.GameCoordinator.Proxy.Events;
 
 namespace TerrariaLauncher.Services.GameCoordinator
 {
-    class GameCoordinator
-    {
-        public Guid Id { get; } = Guid.NewGuid();
-    }
-
     class Program
     {
         static async Task Main(string[] args)
@@ -115,7 +110,6 @@ namespace TerrariaLauncher.Services.GameCoordinator
 
         static void ConfigureCommonServices(HostBuilderContext hostBuilderContext, IServiceCollection serviceCollection)
         {
-            serviceCollection.AddSingleton<GameCoordinator>();
             serviceCollection.AddSingleton<Server>();
             serviceCollection.Configure<ServerOptions>(hostBuilderContext.Configuration.GetSection("ProxyServer"));
             serviceCollection.AddSingleton<ObjectPool<TerrariaPacket>>();
@@ -134,6 +128,10 @@ namespace TerrariaLauncher.Services.GameCoordinator
             {
                 options.Address = new Uri(gameCoordinatorHubUrl);
             });
+            serviceCollection.AddGrpcClient<TerrariaLauncher.Protos.Services.GameCoordinator.Hub.Players.PlayersClient>(options =>
+            {
+                options.Address = new Uri(gameCoordinatorHubUrl);
+            });
             serviceCollection.AddGrpcClient<TerrariaLauncher.Protos.Services.GameCoordinator.Hub.Users.UsersClient>(options =>
             {
                 options.Address = new Uri(gameCoordinatorHubUrl);
@@ -145,7 +143,6 @@ namespace TerrariaLauncher.Services.GameCoordinator
 
             serviceCollection.AddScoped<TerrariaClient>();
             serviceCollection.AddScoped<InstanceClient>();
-            serviceCollection.AddScoped<InterceptorChannels>();
             serviceCollection.AddScoped<Interceptor>();
 
             var consulHost = new ConsulHostConfiguration();

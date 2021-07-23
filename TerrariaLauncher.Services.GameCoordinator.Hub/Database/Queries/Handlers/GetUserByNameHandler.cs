@@ -42,24 +42,22 @@ namespace TerrariaLauncher.Services.GameCoordinator.Hub.Database.Queries.Handler
                     command.AddParameterWithValue("name", query.Name);
                     var reader = await command.ExecuteReaderAsync(System.Data.CommandBehavior.SingleRow, cancellationToken).ConfigureAwait(false);
 
+                    var result = new GetUserByNameQueryResult();
                     await using (reader.ConfigureAwait(false))
                     {
-                        if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+                        if (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
                         {
-                            return null;
+                            result.User = new User()
+                            {
+                                Id = await reader.GetFieldValueAsync<int>(reader.GetOrdinal("id"), cancellationToken).ConfigureAwait(false),
+                                Name = await reader.GetFieldValueAsync<string>(reader.GetOrdinal("name"), cancellationToken).ConfigureAwait(false),
+                                Password = await reader.GetFieldValueAsync<string>(reader.GetOrdinal("password"), cancellationToken).ConfigureAwait(false),
+                                Group = await reader.GetFieldValueAsync<string>(reader.GetOrdinal("group"), cancellationToken).ConfigureAwait(false),
+                                UUID = await reader.GetFieldValueAsync<string>(reader.GetOrdinal("uuid"), cancellationToken).ConfigureAwait(false)
+                            };
                         }
-
-                        var result = new GetUserByNameQueryResult();
-                        result.User = new User()
-                        {
-                            Id = await reader.GetFieldValueAsync<int>(reader.GetOrdinal("id"), cancellationToken).ConfigureAwait(false),
-                            Name = await reader.GetFieldValueAsync<string>(reader.GetOrdinal("name"), cancellationToken).ConfigureAwait(false),
-                            Password = await reader.GetFieldValueAsync<string>(reader.GetOrdinal("password"), cancellationToken).ConfigureAwait(false),
-                            Group = await reader.GetFieldValueAsync<string>(reader.GetOrdinal("group"), cancellationToken).ConfigureAwait(false),
-                            UUID = await reader.GetFieldValueAsync<string>(reader.GetOrdinal("uuid"), cancellationToken).ConfigureAwait(false)
-                        };
-                        return result;
                     }
+                    return result;
                 }
             }
         }

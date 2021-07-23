@@ -85,10 +85,7 @@ namespace TerrariaLauncher.Services.GameCoordinator.Plugins.Defaults
 
             if (!this.Realms.ContainsKey(realm))
             {
-                var errorMessage = await this.textMessageHelper.CreateErrorMessage("Realm does not exist.", args.CancellationToken);
-                await this.terrariaPacketPoolHelper.ReturnPoolIfFailed(errorMessage, async (errorMessage) =>
-                    await sender.InterceptorChannels.TerrariaClientRaw.Writer.WriteAsync(errorMessage, args.CancellationToken)
-                );
+                await this.textMessageHelper.SendErrorMessage("Realm does not exist! Please check realm name again.", sender.TerrariaClient, args.CancellationToken);
                 return;
             }
 

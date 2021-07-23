@@ -43,9 +43,9 @@ namespace TerrariaLauncher.Services.GameCoordinator.Plugins
             return Task.CompletedTask;
         }
 
-        public async Task OnTerrariaClientSocketConnected(Interceptor interceptor, TerrariaClientSocketConnectedEventArgs args)
+        public async Task OnTerrariaClientSocketConnected(TerrariaClient terrariaClient, TerrariaClientSocketConnectedEventArgs args)
         {
-            var ipv4Notation = interceptor.TerrariaClient.IPEndPoint.Address.ToString();
+            var ipv4Notation = terrariaClient.IPEndPoint.Address.ToString();
             var checkBannedResponse = await this.bansClient.IsBannedAsync(new Protos.Services.GameCoordinator.Hub.CheckRequest()
             {
                 IdentityType = BanIdentityType.IPv4,
@@ -66,7 +66,7 @@ namespace TerrariaLauncher.Services.GameCoordinator.Plugins
 
             await disconnectPacket.SerializePayload(PacketOrigin.Server, disconnectPayload, args.CancellationToken).ConfigureAwait(false);
 
-            await interceptor.InterceptorChannels.TerrariaClientProcessed.Writer.WriteAsync(disconnectPacket, args.CancellationToken);
+            await terrariaClient.SendingPacketChannel.Writer.WriteAsync(disconnectPacket, args.CancellationToken);
             args.ForcedToDisconnect = true;
         }
 

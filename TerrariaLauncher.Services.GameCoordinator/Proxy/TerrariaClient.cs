@@ -7,39 +7,76 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
+using System.Threading.Channels;
 using System.Threading.Tasks;
 using TerrariaLauncher.Services.GameCoordinator.Pools;
+using TerrariaLauncher.Services.GameCoordinator.Proxy.Events;
 
 namespace TerrariaLauncher.Services.GameCoordinator.Proxy
 {
-    class TerrariaClient : IDisposable
+    class TerrariaClient : IDisposable, IAsyncDisposable
     {
         private Socket socket;
         private Pipe socketPipe;
 
         private ObjectPool<TerrariaPacket> terrariaPacketPool;
-        private InterceptorChannels interceptorChannels;
+        TerrariaClientEvents terrariaClientSocketEvents;
 
-        private bool disconnected = false;
+        public Channel<TerrariaPacket> ReceivingPacketChannel { get; }
+
+        /// <summary>
+        /// Packet written into this channel will be sent directly to connecting client.
+        /// </summary>
+        public Channel<TerrariaPacket> SendingPacketChannel { get; }
 
         public TerrariaClient(
             ObjectPool<TerrariaPacket> terrariaPacketPool,
-            InterceptorChannels interceptorChannels)
+            TerrariaClientEvents terrariaClientSocketEvents)
         {
             this.socketPipe = new Pipe();
             this.terrariaPacketPool = terrariaPacketPool;
-            this.interceptorChannels = interceptorChannels;
+            this.terrariaClientSocketEvents = terrariaClientSocketEvents;
+
+            var channelOptions = new BoundedChannelOptions(100)
+            {
+                FullMode = BoundedChannelFullMode.Wait
+            };
+            this.ReceivingPacketChannel = Channel.CreateBounded<TerrariaPacket>(channelOptions);
+            this.SendingPacketChannel = Channel.CreateBounded<TerrariaPacket>(channelOptions);
         }
 
         public IPEndPoint IPEndPoint { get; protected set; }
 
-        internal void Connect(Socket terrariaClient)
+        Task _readPacketTask;
+        Task _writePacketTask;
+        Task _completionTask;
+        CancellationTokenSource cancellationTokenSource;
+
+        public Task Completion { get => this._completionSource?.Task ?? Task.CompletedTask; }
+        TaskCompletionSource _completionSource;
+
+        internal async Task<bool> Connect(Socket terrariaClient, CancellationToken cancellationToken = default)
         {
+            if (terrariaClient is null) throw new ArgumentNullException(nameof(terrariaClient));
+
+            await this.Disconnect(cancellationToken: cancellationToken);
             this.socket = terrariaClient;
             this.IPEndPoint = this.socket.RemoteEndPoint as IPEndPoint;
+            this.cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            this._completionSource = new TaskCompletionSource();
+            this._readPacketTask = this.ReadPacketsFromSocket(this.cancellationTokenSource.Token);
+            this._writePacketTask = this.WritePacketsToSocket(this.cancellationTokenSource.Token);
+            this._completionTask = this._readPacketTask.ContinueWith((task) => { this._completionSource.TrySetResult(); });
+
+            var shouldDisconnect = await this.terrariaClientSocketEvents.OnTerrariaClientSocketConnected(this, cancellationToken);
+            if (shouldDisconnect)
+            {
+                await this.Disconnect(sendRemainingPackets: true, cancellationToken);
+            }
+            return shouldDisconnect;
         }
 
-        internal async Task ReadPacketsFromSocket(CancellationToken cancellationToken)
+        private async Task ReadPacketsFromSocket(CancellationToken cancellationToken)
         {
             if (this.socket is null) throw new InvalidOperationException("Terraria Client Socket is not set.");
 
@@ -49,32 +86,61 @@ namespace TerrariaLauncher.Services.GameCoordinator.Proxy
             await Task.WhenAll(task1, task2);
         }
 
-        internal Task WritePacketsToSocket(CancellationToken cancellationToken)
+        private async Task WritePacketsToSocket(CancellationToken cancellationToken)
         {
             if (this.socket is null) throw new InvalidOperationException("Terraria Client Socket is not set.");
 
-            var task3 = this.WriteDataToSocket(cancellationToken);
-            return task3;
+            await this.WriteDataToSocket(cancellationToken);
         }
 
-        public void Disconnect()
+        public async Task Disconnect(bool sendRemainingPackets = false, CancellationToken cancellationToken = default)
         {
-            if (this.disconnected) return;
+            if (this.socket is null) return;
+
+            try
+            {
+                this.socket.Shutdown(SocketShutdown.Receive);
+            }
+            catch { }
+
+            try
+            {
+                await this._readPacketTask;
+            }
+            catch { }
+
+            if (sendRemainingPackets)
+            {
+                SpinWait.SpinUntil(() =>
+                {
+                    return this.SendingPacketChannel.Reader.Count == 0 || this._writePacketTask.IsCompleted;
+                });
+            }
+
+            if (this.cancellationTokenSource is not null)
+            {
+                this.cancellationTokenSource.Cancel();
+                this.cancellationTokenSource.Dispose();
+                this.cancellationTokenSource = null;
+            }
+
+            await this.terrariaClientSocketEvents.OnTerrariaClientSocketDisconnected(this, cancellationToken);
 
             try
             {
                 this.socket.Shutdown(SocketShutdown.Both);
-                this.socket.Disconnect(false);
                 this.socket.Close();
             }
-            catch
-            {
-
-            }
+            catch { }
             finally
             {
                 this.socket.Dispose();
-                this.disconnected = true;
+                this.socket = null;
+            }
+
+            if (this._completionTask is not null)
+            {
+                await this._completionTask;
             }
         }
 
@@ -126,7 +192,7 @@ namespace TerrariaLauncher.Services.GameCoordinator.Proxy
                         packetBuffer.CopyTo(packet.Buffer.Span);
                         try
                         {
-                            await this.interceptorChannels.TerrariaClientRaw.Writer.WriteAsync(packet, cancellationToken);
+                            await this.ReceivingPacketChannel.Writer.WriteAsync(packet, cancellationToken);
                         }
                         catch
                         {
@@ -169,9 +235,9 @@ namespace TerrariaLauncher.Services.GameCoordinator.Proxy
 
         private async Task WriteDataToSocket(CancellationToken cancellationToken)
         {
-            while (await this.interceptorChannels.TerrariaClientProcessed.Reader.WaitToReadAsync(cancellationToken))
+            while (await this.SendingPacketChannel.Reader.WaitToReadAsync(cancellationToken))
             {
-                while (this.interceptorChannels.TerrariaClientProcessed.Reader.TryRead(out var packet))
+                while (this.SendingPacketChannel.Reader.TryRead(out var packet))
                 {
                     try
                     {
@@ -194,20 +260,59 @@ namespace TerrariaLauncher.Services.GameCoordinator.Proxy
         private bool disposed;
         protected virtual void Dispose(bool disposing)
         {
-            if (!disposed)
-            {
-                if (disposing)
-                {
-                    this.Disconnect();
-                }
+            if (disposed) return;
 
-                disposed = true;
+            if (disposing)
+            {
+                _ = this.Disconnect();
+                SpinWait.SpinUntil(() =>
+                {
+                    return this.socket is null;
+                });
+
+                this.ReceivingPacketChannel.Writer.TryComplete();
+                this.SendingPacketChannel.Writer.TryComplete();
+                while (this.ReceivingPacketChannel.Reader.TryRead(out var packet))
+                {
+                    this.terrariaPacketPool.Return(packet);
+                }
+                while (this.SendingPacketChannel.Reader.TryRead(out var packet))
+                {
+                    this.terrariaPacketPool.Return(packet);
+                }
+            }
+
+            disposed = true;
+        }
+
+        protected virtual async ValueTask DisposeAsyncCore()
+        {
+            if (disposed) return;
+
+            await this.Disconnect();
+
+            this.ReceivingPacketChannel.Writer.TryComplete();
+            this.SendingPacketChannel.Writer.TryComplete();
+            await foreach (var packet in this.ReceivingPacketChannel.Reader.ReadAllAsync())
+            {
+                this.terrariaPacketPool.Return(packet);
+            }
+            await foreach (var packet in this.SendingPacketChannel.Reader.ReadAllAsync())
+            {
+                this.terrariaPacketPool.Return(packet);
             }
         }
 
         public void Dispose()
         {
             Dispose(disposing: true);
+            GC.SuppressFinalize(this);
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            await this.DisposeAsyncCore();
+            Dispose(disposing: false);
             GC.SuppressFinalize(this);
         }
         #endregion

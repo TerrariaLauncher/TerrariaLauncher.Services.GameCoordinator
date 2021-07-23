@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.Extensions.Logging;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -32,7 +33,10 @@ namespace TerrariaLauncher.Services.GameCoordinator.Proxy.Events
         private Dictionary<NetModuleId, Handler<Interceptor, NetModuleHandlerArgs>> handlers;
 
         IStructureDeserializerLocator structureDeserializerLocator;
-        public NetModuleEvents(IStructureDeserializerLocator structureDeserializerLocator)
+        ILoggerFactory loggerFactory;
+        public NetModuleEvents(
+            IStructureDeserializerLocator structureDeserializerLocator,
+            ILoggerFactory loggerFactory)
         {
             this.handlers = new Dictionary<NetModuleId, Handler<Interceptor, NetModuleHandlerArgs>>()
             {
@@ -40,6 +44,13 @@ namespace TerrariaLauncher.Services.GameCoordinator.Proxy.Events
             };
 
             this.structureDeserializerLocator = structureDeserializerLocator;
+            this.loggerFactory = loggerFactory;
+            this.TextModuleHandlers = new HandlerList<Interceptor, TextModuleHandlerArgs>(
+                this.loggerFactory.CreateLogger($"{typeof(NetModuleEvents).FullName}.{nameof(TextModuleHandlers)}")
+            );
+            this.ChatModuleHandlers = new HandlerList<Interceptor, ChatModuleHandlerArgs>(
+                this.loggerFactory.CreateLogger($"{typeof(NetModuleEvents).FullName}.{nameof(ChatModuleHandlers)}")
+            );
         }
 
         internal async Task OnNetModule(Interceptor sender, PacketHandlerArgs args)
@@ -89,12 +100,12 @@ namespace TerrariaLauncher.Services.GameCoordinator.Proxy.Events
         /// <summary>
         /// Handlers for handling text module from server.
         /// </summary>
-        public readonly HandlerList<Interceptor, TextModuleHandlerArgs> TextModuleHandlers = new HandlerList<Interceptor, TextModuleHandlerArgs>();
+        public readonly HandlerList<Interceptor, TextModuleHandlerArgs> TextModuleHandlers;
 
         /// <summary>
         /// Handlers for handling chat module from client.
         /// </summary>
-        public readonly HandlerList<Interceptor, ChatModuleHandlerArgs> ChatModuleHandlers = new HandlerList<Interceptor, ChatModuleHandlerArgs>();
+        public readonly HandlerList<Interceptor, ChatModuleHandlerArgs> ChatModuleHandlers;
 
         private async Task HandleTextModuleAndChatModule(Interceptor sender, NetModuleHandlerArgs args)
         {

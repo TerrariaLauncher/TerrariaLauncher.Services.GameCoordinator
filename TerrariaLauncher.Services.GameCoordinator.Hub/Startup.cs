@@ -57,6 +57,8 @@ namespace TerrariaLauncher.Services.GameCoordinator.Hub
             }
 
             services.Configure<Dictionary<string, Instance>>(this.configuration.GetSection("TerrariaServerInstances"));
+
+            services.AddSingleton<Services.Playing>();
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.

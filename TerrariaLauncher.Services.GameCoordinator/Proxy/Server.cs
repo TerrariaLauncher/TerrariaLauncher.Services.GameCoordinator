@@ -50,29 +50,39 @@ namespace TerrariaLauncher.Services.GameCoordinator.Proxy
             this.listenSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
             this.listenSocket.Bind(bindEndPoint);
             this.listenSocket.Listen(1024);
-            _ = Task.Run(() => this.Loop(this.cancellationToken), this.cancellationToken);
+            _ = Task.Run(() => this.StartAcceptTerrariaClient(this.cancellationToken), this.cancellationToken);
 
             Console.Title = bindEndPoint.ToString();
         }
 
-        private async Task Loop(CancellationToken cancellationToken)
+        private async Task StartAcceptTerrariaClient(CancellationToken cancellationToken)
         {
             while (true)
             {
-                var scope = this.serviceScopeFactory.CreateScope();
-
                 var acceptSocket = await this.listenSocket.AcceptAsync();
-                var interceptor = scope.ServiceProvider.GetRequiredService<Interceptor>();
-                var terrariaClient = scope.ServiceProvider.GetRequiredService<TerrariaClient>();
-                terrariaClient.Connect(acceptSocket);
-                Interlocked.Increment(ref this.numConnectingClients);
 
-                var interceptTask = interceptor.ProcessPackets(cancellationToken);
-                _ = interceptTask.ContinueWith(task =>
+                var scope = this.serviceScopeFactory.CreateScope();
+                var interceptorTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                var terrariaClient = scope.ServiceProvider.GetRequiredService<TerrariaClient>();
+                var connectionRefused = await terrariaClient.Connect(acceptSocket, interceptorTokenSource.Token);
+                if (connectionRefused)
                 {
-                    Interlocked.Decrement(ref this.numConnectingClients);
+                    interceptorTokenSource.Cancel();
+                    interceptorTokenSource.Dispose();
                     scope.Dispose();
-                });
+                    return;
+                }
+
+                var interceptor = scope.ServiceProvider.GetRequiredService<Interceptor>();
+                _ = interceptor.ProcessPackets(interceptorTokenSource.Token);
+                Interlocked.Increment(ref this.numConnectingClients);
+                _ = terrariaClient.Completion.ContinueWith(task =>
+                    {
+                        interceptorTokenSource.Cancel();
+                        interceptorTokenSource.Dispose();
+                        Interlocked.Decrement(ref this.numConnectingClients);
+                        scope.Dispose();
+                    });
             }
         }
 

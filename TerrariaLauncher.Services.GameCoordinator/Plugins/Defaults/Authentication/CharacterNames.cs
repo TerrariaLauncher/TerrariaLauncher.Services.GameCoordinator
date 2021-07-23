@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.Extensions.Configuration;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
@@ -6,6 +7,7 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using TerrariaLauncher.Commons.DomainObjects;
 using TerrariaLauncher.Services.GameCoordinator.Packets.Payloads;
 using TerrariaLauncher.Services.GameCoordinator.Proxy;
 using TerrariaLauncher.Services.GameCoordinator.Proxy.Events;
@@ -14,20 +16,35 @@ namespace TerrariaLauncher.Services.GameCoordinator.Plugins
 {
     class CharacterNames : Plugin
     {
-        private ConcurrentDictionary<Interceptor, string> characterNames = new ConcurrentDictionary<Interceptor, string>();
+        class Player
+        {
+            public string Name { get; set; }
+            public User User { get; set; }
+        }
+
+        private ConcurrentDictionary<TerrariaClient, string> characterNames = new ConcurrentDictionary<TerrariaClient, string>();
 
         PacketEvents packetEvents;
         TerrariaClientEvents terrariaClientSocketEvents;
         Server server;
+        TerrariaLauncher.Protos.Services.GameCoordinator.Hub.Players.PlayersClient playersClient;
+        IConfiguration configuration;
+        string gameCoordinatorId;
 
         public CharacterNames(
             PacketEvents packetEvents,
             TerrariaClientEvents terrariaClientSocketEvents,
-            Server server)
+            Server server,
+            TerrariaLauncher.Protos.Services.GameCoordinator.Hub.Players.PlayersClient playersClient,
+            IConfiguration configuration)
         {
             this.packetEvents = packetEvents;
             this.terrariaClientSocketEvents = terrariaClientSocketEvents;
             this.server = server;
+            this.playersClient = playersClient;
+            this.configuration = configuration;
+
+            this.gameCoordinatorId = this.configuration.GetValue<string>("Id");
         }
 
         public override Task Load(CancellationToken cancellationToken = default)
@@ -50,12 +67,18 @@ namespace TerrariaLauncher.Services.GameCoordinator.Plugins
         {
             if (args.TerrariaPacket.Origin != PacketOrigin.Client) return;
             var syncPlayer = await args.TerrariaPacket.DeserializePayload<SyncPlayer>(args.CancellationToken);
-            this.characterNames.TryAdd(interceptor, syncPlayer.Name);
+            this.characterNames.TryAdd(interceptor.TerrariaClient, syncPlayer.Name);
+            await this.playersClient.JoinAsync(new Protos.Services.GameCoordinator.Hub.JoinRequest()
+            {
+                Name = syncPlayer.Name,
+                EndPoint = interceptor.TerrariaClient.IPEndPoint.ToString(),
+                GameCoordinatorId = this.gameCoordinatorId
+            });
         }
 
-        internal Task OnTerrariaClientSocketDisconnect(Interceptor interceptor, TerrariaClientSocketDisconnectedEventArgs args)
+        internal Task OnTerrariaClientSocketDisconnect(TerrariaClient terrariaClient, TerrariaClientSocketDisconnectedEventArgs args)
         {
-            this.characterNames.TryRemove(interceptor, out _);
+            this.characterNames.TryRemove(terrariaClient, out _);
             return Task.CompletedTask;
         }
 
@@ -66,6 +89,11 @@ namespace TerrariaLauncher.Services.GameCoordinator.Plugins
         }
 
         public string GetCharacterName(Interceptor interceptor)
+        {
+            return this.GetCharacterName(interceptor.TerrariaClient);
+        }
+
+        public string GetCharacterName(TerrariaClient interceptor)
         {
             if (!this.characterNames.TryGetValue(interceptor, out var characterName))
             {

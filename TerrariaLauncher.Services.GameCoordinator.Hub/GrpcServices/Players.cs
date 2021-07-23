@@ -21,10 +21,11 @@ namespace TerrariaLauncher.Services.GameCoordinator.Hub.GrpcServices
 
         public override Task<JoinResponse> Join(JoinRequest request, ServerCallContext context)
         {
-            var player = new Player()
+            var player = new GameCoordinatorPlayer()
             {
                 Name = request.Name,
-                IP = new IPAddress(request.IP.ToByteArray())
+                EndPoint = IPEndPoint.Parse(request.EndPoint),
+                GameCoordinatorId = request.GameCoordinatorId
             };
             
             if (!this.playing.Join(player))

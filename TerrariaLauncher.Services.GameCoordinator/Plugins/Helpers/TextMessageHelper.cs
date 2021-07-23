@@ -4,6 +4,7 @@ using TerrariaLauncher.Services.GameCoordinator.Packets.Payloads;
 using TerrariaLauncher.Services.GameCoordinator.Packets.Payloads.Modules;
 using TerrariaLauncher.Services.GameCoordinator.Packets.Payloads.Structures;
 using TerrariaLauncher.Services.GameCoordinator.Pools;
+using TerrariaLauncher.Services.GameCoordinator.Proxy;
 
 namespace TerrariaLauncher.Services.GameCoordinator.Plugins.Helpers
 {
@@ -16,7 +17,9 @@ namespace TerrariaLauncher.Services.GameCoordinator.Plugins.Helpers
         public static Color Yellow = new Color() { R = 255, G = 255, B = 0 };
 
         ObjectPool<TerrariaPacket> terrariaPacketPool;
-        public TextMessageHelper(ObjectPool<TerrariaPacket> terrariaPacketPool)
+        public TextMessageHelper(
+            ObjectPool<TerrariaPacket> terrariaPacketPool
+            )
         {
             this.terrariaPacketPool = terrariaPacketPool;
         }
@@ -50,7 +53,7 @@ namespace TerrariaLauncher.Services.GameCoordinator.Plugins.Helpers
                 {
                     ModuleId = textModule.NetModuleId,
                     Payload = textModule
-                });
+                }, cancellationToken);
 
                 return packet;
             }
@@ -63,22 +66,56 @@ namespace TerrariaLauncher.Services.GameCoordinator.Plugins.Helpers
 
         public Task<TerrariaPacket> CreateErrorMessage(string message, CancellationToken cancellationToken = default)
         {
-            return this.CreateMessage(message, Red);
+            return this.CreateMessage(message, Red, cancellationToken);
         }
 
         public Task<TerrariaPacket> CreateWarningMessage(string message, CancellationToken cancellationToken = default)
         {
-            return this.CreateMessage(message, OrangeRed);
+            return this.CreateMessage(message, OrangeRed, cancellationToken);
         }
 
         public Task<TerrariaPacket> CreateInfoMessage(string message, CancellationToken cancellationToken = default)
         {
-            return this.CreateMessage(message, Yellow);
+            return this.CreateMessage(message, Yellow, cancellationToken);
         }
 
         public Task<TerrariaPacket> CreateSuccessMessage(string message, CancellationToken cancellationToken = default)
         {
-            return this.CreateMessage(message, Green);
+            return this.CreateMessage(message, Green, cancellationToken);
+        }
+
+        public async Task SendMessage(string message, Color color, TerrariaClient terrariaClient, CancellationToken cancellationToken = default)
+        {
+            var packet = await this.CreateMessage(message, color, cancellationToken);
+            try
+            {
+                await terrariaClient.SendingPacketChannel.Writer.WriteAsync(packet, cancellationToken);
+            }
+            catch
+            {
+                this.terrariaPacketPool.Return(packet);
+                throw;
+            }
+        }
+
+        public Task SendErrorMessage(string message, TerrariaClient terrariaClient, CancellationToken cancellationToken = default)
+        {
+            return this.SendMessage(message, Red, terrariaClient, cancellationToken);
+        }
+
+        public Task SendInfoMessage(string message, TerrariaClient terrariaClient, CancellationToken cancellationToken = default)
+        {
+            return this.SendMessage(message, Yellow, terrariaClient, cancellationToken);
+        }
+
+        public Task SendWarningMessage(string message, TerrariaClient terrariaClient, CancellationToken cancellationToken = default)
+        {
+            return this.SendMessage(message, OrangeRed, terrariaClient, cancellationToken);
+        }
+
+        public Task SendSuccessMessage(string message, TerrariaClient terrariaClient, CancellationToken cancellationToken = default)
+        {
+            return this.SendMessage(message, Green, terrariaClient, cancellationToken);
         }
     }
 }

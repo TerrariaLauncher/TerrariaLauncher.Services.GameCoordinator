@@ -1,6 +1,8 @@
 ﻿using System;
+using System.Threading;
 using System.Threading.Tasks;
 using TerrariaLauncher.Services.GameCoordinator.Pools;
+using TerrariaLauncher.Services.GameCoordinator.Proxy;
 
 namespace TerrariaLauncher.Services.GameCoordinator.Plugins.Helpers
 {
@@ -12,8 +14,9 @@ namespace TerrariaLauncher.Services.GameCoordinator.Plugins.Helpers
             this.terrariaPacketPool = terrariaPacketPool;
         }
 
-        public async Task ReturnPoolIfFailed(TerrariaPacket packet, Func<TerrariaPacket, Task> func)
+        public async Task ReturnPoolIfFailed(Func<TerrariaPacket, Task> func)
         {
+            var packet = this.terrariaPacketPool.Get();
             try
             {
                 await func(packet);
@@ -25,8 +28,9 @@ namespace TerrariaLauncher.Services.GameCoordinator.Plugins.Helpers
             }
         }
 
-        public void ReturnPoolIfFailed(TerrariaPacket packet, Action<TerrariaPacket> action)
+        public void ReturnPoolIfFailed(Action<TerrariaPacket> action)
         {
+            var packet = this.terrariaPacketPool.Get();
             try
             {
                 action(packet);

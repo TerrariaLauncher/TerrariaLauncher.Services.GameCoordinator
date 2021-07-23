@@ -7,6 +7,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
+using System.Threading.Channels;
 using System.Threading.Tasks;
 using TerrariaLauncher.Commons.DomainObjects;
 using TerrariaLauncher.Services.GameCoordinator.Pools;
@@ -14,7 +15,11 @@ using TerrariaLauncher.Services.GameCoordinator.Proxy.Events;
 
 namespace TerrariaLauncher.Services.GameCoordinator.Proxy
 {
-    class InstanceClient : IDisposable
+    /// <summary>
+    /// This class represent a connection to a Terraria Server Instance.
+    /// 
+    /// </summary>
+    class InstanceClient : IDisposable, IAsyncDisposable
     {
         Instance instance;
         Socket socket;
@@ -22,22 +27,31 @@ namespace TerrariaLauncher.Services.GameCoordinator.Proxy
 
         InstanceClientEvents instanceClientEvents;
         ObjectPool<TerrariaPacket> terrariaPacketPool;
-        InterceptorChannels interceptorChannels;
 
-        SemaphoreSlim semaphore;
+        public Channel<TerrariaPacket> ReceivingPacketChannel { get; }
+
+        /// <summary>
+        /// Packet written into this channel will be sent directly to connecting server.
+        /// </summary>
+        public Channel<TerrariaPacket> SendingPacketChannel { get; }
 
         public InstanceClient(
             InstanceClientEvents instanceClientEvents,
-            ObjectPool<TerrariaPacket> terrariaPacketPool,
-            InterceptorChannels interceptorChannels
+            ObjectPool<TerrariaPacket> terrariaPacketPool
             )
         {
             this.instanceClientEvents = instanceClientEvents;
             this.terrariaPacketPool = terrariaPacketPool;
-            this.interceptorChannels = interceptorChannels;
 
-            this.semaphore = new SemaphoreSlim(1, 1);
+            var channelOptions = new BoundedChannelOptions(100)
+            {
+                FullMode = BoundedChannelFullMode.Wait
+            };
+            this.ReceivingPacketChannel = Channel.CreateBounded<TerrariaPacket>(channelOptions);
+            this.SendingPacketChannel = Channel.CreateBounded<TerrariaPacket>(channelOptions);
         }
+
+        public Instance Instance { get => this.instance; }
 
         internal async Task Connect(string realm, CancellationToken cancellationToken)
         {
@@ -46,10 +60,20 @@ namespace TerrariaLauncher.Services.GameCoordinator.Proxy
             await this.Connect(instance, cancellationToken);
         }
 
+        CancellationTokenSource cancellationTokenSource;
+        Task readPacketsTask;
+        Task writePacketsTask;
         private async Task Connect(Instance instance, CancellationToken cancellationToken)
         {
             await this.instanceClientEvents.OnConnectToInstance(this, instance, cancellationToken);
             this.instance = instance;
+
+            await this.Disconect();
+
+            var instanceIpAddress = await NetworkUtils.GetIPv4(this.instance.Host);
+            var instanceIPEndPoint = new IPEndPoint(instanceIpAddress, this.instance.Port);
+            this.socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+            await this.socket.ConnectAsync(instanceIPEndPoint, cancellationToken);
 
             if (this.socketPipe is null)
             {
@@ -59,41 +83,55 @@ namespace TerrariaLauncher.Services.GameCoordinator.Proxy
             {
                 this.socketPipe.Reset();
             }
+            this.cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
-            var instanceIpAddress = await NetworkUtils.GetIPv4(this.instance.Host);
-            var instanceIPEndPoint = new IPEndPoint(instanceIpAddress, this.instance.Port);
-            this.socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-            await this.socket.ConnectAsync(instanceIPEndPoint, cancellationToken);
-
-            _ = Task.Run(() =>
-            {
-                _ = this.ReadPacketsFromSocket(cancellationToken);
-                _ = this.WritePacketsToSocket(cancellationToken);
-            });
+            this.readPacketsTask = this.ReadPacketsFromSocket(this.cancellationTokenSource.Token);
+            this.writePacketsTask = this.WritePacketsToSocket(this.cancellationTokenSource.Token);
         }
 
-        internal void Disconect()
+        internal async Task Disconect()
         {
             if (this.socket is null) return;
 
             try
             {
                 this.socket.Shutdown(SocketShutdown.Both);
-                this.socket.Disconnect(false);
                 this.socket.Close();
             }
-            catch (ObjectDisposedException)
-            {
-
-            }
+            catch { }
             finally
             {
                 this.socket.Dispose();
                 this.socket = null;
             }
+
+            if (this.readPacketsTask is not null && !this.readPacketsTask.IsCompleted)
+            {
+                try
+                {
+                    await readPacketsTask;
+                }
+                catch { }
+            }
+
+            if (this.cancellationTokenSource is not null)
+            {
+                this.cancellationTokenSource.Cancel();
+                this.cancellationTokenSource.Dispose();
+                this.cancellationTokenSource = null;
+            }
+
+            if (this.writePacketsTask is not null && !this.writePacketsTask.IsCompleted)
+            {
+                try
+                {
+                    await writePacketsTask;
+                }
+                catch { }
+            }
         }
 
-        internal async Task ReadPacketsFromSocket(CancellationToken cancellationToken)
+        private async Task ReadPacketsFromSocket(CancellationToken cancellationToken)
         {
             var task1 = this.ReadDataFromSocket(cancellationToken);
             var task2 = this.ParsePacket(cancellationToken);
@@ -101,7 +139,7 @@ namespace TerrariaLauncher.Services.GameCoordinator.Proxy
             await Task.WhenAll(task1, task2);
         }
 
-        internal Task WritePacketsToSocket(CancellationToken cancellationToken)
+        private Task WritePacketsToSocket(CancellationToken cancellationToken)
         {
             var task3 = this.WriteDataToSocket(cancellationToken);
             return task3;
@@ -142,7 +180,10 @@ namespace TerrariaLauncher.Services.GameCoordinator.Proxy
                 while (true)
                 {
                     var readResult = await this.socketPipe.Reader.ReadAsync(cancellationToken);
-                    if (readResult.IsCanceled) break;
+                    if (readResult.IsCanceled)
+                    {
+                        break;
+                    }
 
                     var buffer = readResult.Buffer;
                     while (GetPacketBuffer(ref buffer, out var packetBuffer))
@@ -155,11 +196,12 @@ namespace TerrariaLauncher.Services.GameCoordinator.Proxy
                         packetBuffer.CopyTo(packet.Buffer.Span);
                         try
                         {
-                            await this.interceptorChannels.InstanceClientRaw.Writer.WriteAsync(packet, cancellationToken);
+                            await this.ReceivingPacketChannel.Writer.WriteAsync(packet, cancellationToken);
                         }
                         catch
                         {
                             this.terrariaPacketPool.Return(packet);
+                            throw;
                         }
                     }
                     this.socketPipe.Reader.AdvanceTo(buffer.Start, buffer.End);
@@ -196,24 +238,49 @@ namespace TerrariaLauncher.Services.GameCoordinator.Proxy
             return reader.TryReadLittleEndian(out length);
         }
 
+        Queue<TerrariaPacket> unableToSendPackets = new Queue<TerrariaPacket>();
         private async Task WriteDataToSocket(CancellationToken cancellationToken)
         {
-            while (await this.interceptorChannels.InstanceClientProcessed.Reader.WaitToReadAsync(cancellationToken))
+            async Task SendPacket(TerrariaPacket packet)
             {
-                while (this.interceptorChannels.InstanceClientProcessed.Reader.TryRead(out var packet))
+                var buffer = packet.Buffer;
+                do
+                {
+                    int numSendBytes = await this.socket.SendAsync(buffer, SocketFlags.None, cancellationToken);
+                    buffer = buffer.Slice(numSendBytes);
+                } while (!buffer.IsEmpty);
+
+                this.terrariaPacketPool.Return(packet);
+            }
+
+            while (this.unableToSendPackets.TryPeek(out var packet))
+            {
+                await SendPacket(packet);
+                this.unableToSendPackets.Dequeue();
+            }
+
+            while (await this.SendingPacketChannel.Reader.WaitToReadAsync(cancellationToken))
+            {
+                while (this.SendingPacketChannel.Reader.TryRead(out var packet))
                 {
                     try
                     {
-                        var buffer = packet.Buffer;
-                        do
-                        {
-                            int numSendBytes = await this.socket.SendAsync(buffer, SocketFlags.None, cancellationToken);
-                            buffer = buffer.Slice(numSendBytes);
-                        } while (!buffer.IsEmpty);
+                        await SendPacket(packet);
                     }
-                    finally
+                    catch (OperationCanceledException)
+                    {
+                        this.unableToSendPackets.Enqueue(packet);
+                        throw;
+                    }
+                    catch (SocketException)
+                    {
+                        this.unableToSendPackets.Enqueue(packet);
+                        throw;
+                    }
+                    catch
                     {
                         this.terrariaPacketPool.Return(packet);
+                        throw;
                     }
                 }
             }
@@ -223,20 +290,70 @@ namespace TerrariaLauncher.Services.GameCoordinator.Proxy
         private bool disposed;
         protected virtual void Dispose(bool disposing)
         {
-            if (!disposed)
-            {
-                if (disposing)
-                {
-                    this.Disconect();
-                }
+            if (disposed) return;
 
-                disposed = true;
+            if (disposing)
+            {
+                _ = this.Disconect();
+                this.ReceivingPacketChannel.Writer.TryComplete();
+                this.SendingPacketChannel.Writer.TryComplete();
+
+                if (this.writePacketsTask is not null)
+                {
+                    SpinWait.SpinUntil(() =>
+                    {
+                        return this.writePacketsTask.IsCompleted;
+                    });
+                }
+                while (this.unableToSendPackets.TryDequeue(out var packet))
+                {
+                    this.terrariaPacketPool.Return(packet);
+                }
+                while (this.ReceivingPacketChannel.Reader.TryRead(out var packet))
+                {
+                    this.terrariaPacketPool.Return(packet);
+                }
+                while (this.SendingPacketChannel.Reader.TryRead(out var packet))
+                {
+                    this.terrariaPacketPool.Return(packet);
+                }
+            }
+
+            disposed = true;
+        }
+
+        protected virtual async ValueTask DisposeAsyncCore()
+        {
+            if (this.disposed) return;
+
+            await this.Disconect();
+            this.ReceivingPacketChannel.Writer.TryComplete();
+            this.SendingPacketChannel.Writer.TryComplete();
+
+            while (this.unableToSendPackets.TryDequeue(out var packet))
+            {
+                this.terrariaPacketPool.Return(packet);
+            }
+            await foreach (var packet in this.ReceivingPacketChannel.Reader.ReadAllAsync())
+            {
+                this.terrariaPacketPool.Return(packet);
+            }
+            await foreach (var packet in this.SendingPacketChannel.Reader.ReadAllAsync())
+            {
+                this.terrariaPacketPool.Return(packet);
             }
         }
 
         public void Dispose()
         {
             Dispose(disposing: true);
+            GC.SuppressFinalize(this);
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            await this.DisposeAsyncCore();
+            this.Dispose(disposing: false);
             GC.SuppressFinalize(this);
         }
         #endregion

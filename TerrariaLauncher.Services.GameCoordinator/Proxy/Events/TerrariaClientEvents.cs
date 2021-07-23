@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.Extensions.Logging;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -19,15 +20,22 @@ namespace TerrariaLauncher.Services.GameCoordinator.Proxy.Events
 
     class TerrariaClientEvents
     {
-        public TerrariaClientEvents()
+        ILoggerFactory loggerFactory;
+        public TerrariaClientEvents(ILoggerFactory loggerFactory)
         {
-
+            this.loggerFactory = loggerFactory;
+            this.TerrariaClientSocketConnected = new HandlerList<TerrariaClient, TerrariaClientSocketConnectedEventArgs>(
+                this.loggerFactory.CreateLogger($"{typeof(TerrariaClientEvents).FullName}.{nameof(TerrariaClientSocketConnected)}")
+            );
+            this.TerrariaClientSocketDisconnected = new HandlerList<TerrariaClient, TerrariaClientSocketDisconnectedEventArgs>(
+                this.loggerFactory.CreateLogger($"{typeof(TerrariaClientEvents).FullName}.{nameof(TerrariaClientSocketDisconnected)}")
+            );
         }
 
-        public HandlerList<Interceptor, TerrariaClientSocketConnectedEventArgs> TerrariaClientSocketConnected = new HandlerList<Interceptor, TerrariaClientSocketConnectedEventArgs>();
-        public HandlerList<Interceptor, TerrariaClientSocketDisconnectedEventArgs> TerrariaClientSocketDisconnected = new HandlerList<Interceptor, TerrariaClientSocketDisconnectedEventArgs>();
+        public readonly HandlerList<TerrariaClient, TerrariaClientSocketConnectedEventArgs> TerrariaClientSocketConnected;
+        public readonly HandlerList<TerrariaClient, TerrariaClientSocketDisconnectedEventArgs> TerrariaClientSocketDisconnected;
 
-        internal async Task<bool> OnTerrariaClientSocketConnected(Interceptor sender, CancellationToken cancellationToken = default)
+        internal async Task<bool> OnTerrariaClientSocketConnected(TerrariaClient sender, CancellationToken cancellationToken = default)
         {
             var args = new TerrariaClientSocketConnectedEventArgs()
             {
@@ -38,7 +46,7 @@ namespace TerrariaLauncher.Services.GameCoordinator.Proxy.Events
             return args.ForcedToDisconnect;
         }
 
-        internal Task OnTerrariaClientSocketDisconnected(Interceptor sender, CancellationToken cancellationToken = default)
+        internal Task OnTerrariaClientSocketDisconnected(TerrariaClient sender, CancellationToken cancellationToken = default)
         {
             var args = new TerrariaClientSocketDisconnectedEventArgs()
             {

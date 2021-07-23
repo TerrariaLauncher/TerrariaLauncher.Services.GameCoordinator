@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.Extensions.Logging;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -26,9 +27,17 @@ namespace TerrariaLauncher.Services.GameCoordinator.Proxy.Events
         /// </summary>
         public static readonly Regex CommandRegex = new Regex(@"(""[^""]+""|[^\s""]+)", RegexOptions.IgnoreCase | RegexOptions.Multiline);
 
+        ILoggerFactory loggerFactory;
+        public TextCommands(ILoggerFactory loggerFactory)
+        {
+            this.loggerFactory = loggerFactory;
+        }
+
         public bool Register(TextCommand textCommand)
         {
-            var handlers = new HandlerList<Interceptor, TextCommandHandlerArgs>();
+            var handlers = new HandlerList<Interceptor, TextCommandHandlerArgs>(
+                this.loggerFactory.CreateLogger($"{typeof(TextCommands).FullName}:{textCommand})")
+            );
             handlers.Register(textCommand.Handler);
             return this.textCommandHandlers.TryAdd(textCommand.Command, handlers);
         }
@@ -49,12 +58,42 @@ namespace TerrariaLauncher.Services.GameCoordinator.Proxy.Events
         internal async Task OnNetworkChatModule(Interceptor interceptor, ChatModuleHandlerArgs args)
         {
             if (args.TerrariaPacket.Origin != PacketOrigin.Client) return;
-            var matches = CommandRegex.Matches(args.ChatModule.Text);
-            if (matches.Count < 0) return;
 
-            var parts = matches.Select(match => match.Value).ToArray();
-            if (parts[0][0] != '/' && parts[0][0] != '.') return;
-            var command = parts[0].Substring(1);
+            string command = null;
+            Memory<string> arguments = Memory<string>.Empty;
+            switch (args.ChatModule.Command)
+            {
+                case Packets.Payloads.Modules.ChatModule.CommandType.Say:
+                    {
+                        var matches = CommandRegex.Matches(args.ChatModule.Text);
+                        if (matches.Count < 0) return;
+
+                        var parts = matches.Select(match => match.Value).ToArray();
+                        if (parts[0][0] != '/' && parts[0][0] != '.') return;
+                        command = parts[0].Substring(1);
+                        arguments = parts.AsMemory(1);
+                        break;
+                    }
+                case Packets.Payloads.Modules.ChatModule.CommandType.Help:
+                case Packets.Payloads.Modules.ChatModule.CommandType.Playing:
+                    {
+                        switch (args.ChatModule.Command)
+                        {
+                            case Packets.Payloads.Modules.ChatModule.CommandType.Help:
+                                command = "help";
+                                break;
+                            case Packets.Payloads.Modules.ChatModule.CommandType.Playing:
+                                command = "playing";
+                                break;
+                        }
+
+                        var matches = CommandRegex.Matches(args.ChatModule.Text);
+                        arguments = matches.Select(match => match.Value).ToArray().AsMemory();
+                        break;
+                    }
+                default:
+                    return;
+            }
 
             if (!this.textCommandHandlers.TryGetValue(command, out var handlers))
             {
@@ -66,9 +105,8 @@ namespace TerrariaLauncher.Services.GameCoordinator.Proxy.Events
             var textCommandHandlerArgs = new TextCommandHandlerArgs()
             {
                 CancellationToken = args.CancellationToken,
-                Handled = args.Handled,
                 Command = command,
-                Arguments = new Memory<string>(parts).Slice(1)
+                Arguments = arguments
             };
             await handlers.Invoke(interceptor, textCommandHandlerArgs);
         }
