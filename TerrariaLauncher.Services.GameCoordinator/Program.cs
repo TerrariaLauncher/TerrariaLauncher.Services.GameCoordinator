@@ -117,6 +117,7 @@ namespace TerrariaLauncher.Services.GameCoordinator
             serviceCollection.AddSingleton<ObjectPool<PacketHandlerArgs>>();
             serviceCollection.AddSingleton<IObjectPoolPolicy<PacketHandlerArgs>, PacketHandlerArgsPoolPolicy>();
 
+            serviceCollection.AddSingleton<InterceptorEvents>();
             serviceCollection.AddSingleton<TerrariaClientEvents>();
             serviceCollection.AddSingleton<InstanceClientEvents>();
             serviceCollection.AddSingleton<PacketEvents>();
@@ -175,48 +176,29 @@ namespace TerrariaLauncher.Services.GameCoordinator
             serviceCollection.AddSingleton<IStructureSerializerDispatcher, StructureSerializerDispatcher>();
             serviceCollection.AddSingleton<IStructureDeserializerDispatcher, StructureDeserializerDispatcher>();
 
-            // Packet Payloads
-            serviceCollection.AddSingleton<IStructureSerializer<Connect>, ConnectSerializer>();
-            serviceCollection.AddSingleton<IStructureDeserializer<Connect>, ConnectDeserializer>();
+            var assembly = Assembly.GetExecutingAssembly();
+            foreach (var type in assembly.GetTypes())
+            {
+                if (!type.IsClass) continue;
+                if (type.IsAbstract) continue;
+                if (type.IsGenericTypeDefinition) continue;
 
-            serviceCollection.AddSingleton<IStructureSerializer<Disconnect>, DisconnectSerializer>();
-            serviceCollection.AddSingleton<IStructureDeserializer<Disconnect>, DisconnectDeserializer>();
-
-            serviceCollection.AddSingleton<IStructureSerializer<SyncPlayer>, SyncPlayerSerializer>();
-            serviceCollection.AddSingleton<IStructureDeserializer<SyncPlayer>, SyncPlayerDeserializer>();
+                Type interfaceType = null;
+                if ((interfaceType = type.GetInterface(typeof(IStructureSerializer<>).Name)) is not null)
+                {
+                    serviceCollection.AddSingleton(interfaceType, type);
+                }
+                else if ((interfaceType = type.GetInterface(typeof(IStructureDeserializer<>).Name)) is not null)
+                {
+                    serviceCollection.AddSingleton(interfaceType, type);
+                }
+            }
 
             serviceCollection.AddSingleton<IStructureSerializer<NetModule<TextModule>>, NetModuleSerializer<TextModule>>();
             serviceCollection.AddSingleton<IStructureDeserializer<NetModule<TextModule>>, NetModuleDeserializer<TextModule>>();
 
             serviceCollection.AddSingleton<IStructureSerializer<NetModule<ChatModule>>, NetModuleSerializer<ChatModule>>();
             serviceCollection.AddSingleton<IStructureDeserializer<NetModule<ChatModule>>, NetModuleDeserializer<ChatModule>>();
-
-            // Modules
-            serviceCollection.AddSingleton<IStructureSerializer<TextModule>, TextModuleSerializer>();
-            serviceCollection.AddSingleton<IStructureDeserializer<TextModule>, TextModuleDeserializer>();
-
-            serviceCollection.AddSingleton<IStructureSerializer<ChatModule>, ChatModuleSerializer>();
-            serviceCollection.AddSingleton<IStructureDeserializer<ChatModule>, ChatModuleDeserializer>();
-
-            // Structures
-            serviceCollection.AddSingleton<IStructureSerializer<NetString>, NetStringSerializer>();
-            serviceCollection.AddSingleton<IStructureDeserializer<NetString>, NetStringDeserializer>();
-
-            serviceCollection.AddSingleton<IStructureSerializer<Color>, ColorSerializer>();
-            serviceCollection.AddSingleton<IStructureDeserializer<Color>, ColorDeserializer>();
-
-            serviceCollection.AddSingleton<IStructureSerializer<NetworkText>, NetworkTextSerializer>();
-            serviceCollection.AddSingleton<IStructureDeserializer<NetworkText>, NetworkTextDeserializer>();
-
-            serviceCollection.AddSingleton<IStructureSerializer<Vector2>, Vector2Serializer>();
-            serviceCollection.AddSingleton<IStructureDeserializer<Vector2>, Vector2Deserializer>();
-
-            // BitFlags
-            serviceCollection.AddSingleton<IStructureSerializer<DifficultyFlags>, DifficultyFlagsSerializer>();
-            serviceCollection.AddSingleton<IStructureDeserializer<DifficultyFlags>, DifficultyFlagsDeserializer>();
-
-            serviceCollection.AddSingleton<IStructureSerializer<TorchFlags>, TorchFlagsSerializer>();
-            serviceCollection.AddSingleton<IStructureDeserializer<TorchFlags>, TorchFlagsDeserializer>();
         }
     }
 }

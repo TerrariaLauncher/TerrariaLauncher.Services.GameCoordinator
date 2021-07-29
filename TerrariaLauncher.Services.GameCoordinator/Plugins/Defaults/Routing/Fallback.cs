@@ -61,7 +61,7 @@ namespace TerrariaLauncher.Services.GameCoordinator.Plugins
             args.Ignored = true;
             args.Handled = true;
 
-            await sender.InstanceClient.Connect("Entrance", args.CancellationToken);
+            await sender.InstanceClient.Connect("PvE", args.CancellationToken);
         }
     }
 }

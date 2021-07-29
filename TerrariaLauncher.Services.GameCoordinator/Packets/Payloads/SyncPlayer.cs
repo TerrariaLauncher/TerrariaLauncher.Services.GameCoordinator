@@ -9,9 +9,10 @@ using TerrariaLauncher.Services.GameCoordinator.Packets.Payloads.Structures;
 
 namespace TerrariaLauncher.Services.GameCoordinator.Packets.Payloads
 {
+    [PacketStructure(OpCode: PacketOpCode.SyncPlayer)]
     class SyncPlayer: PacketStructure
     {
-        public override PacketOpCode OpCode => throw new NotImplementedException();
+        public override PacketOpCode OpCode => PacketOpCode.SyncPlayer;
 
         public byte PlayerId { get; set; }
         public byte SkinVarient { get; set; }

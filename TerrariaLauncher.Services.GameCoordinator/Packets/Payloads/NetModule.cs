@@ -40,6 +40,7 @@ namespace TerrariaLauncher.Services.GameCoordinator.Packets.Payloads
         }
     }
 
+    [PacketStructure(OpCode: PacketOpCode.NetModule)]
     class NetModule<TPayload> : PacketStructure where TPayload : class, IModuleStructure
     {
         public override PacketOpCode OpCode => PacketOpCode.NetModule;

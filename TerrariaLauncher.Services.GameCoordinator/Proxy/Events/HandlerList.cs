@@ -31,7 +31,7 @@ namespace TerrariaLauncher.Services.GameCoordinator.Proxy.Events
             /// <summary>
             /// Indicate handler should be continue to run even after the event is handled.
             /// </summary>
-            public bool SkipHandled { get; set; }
+            public bool BypassHandled { get; set; }
         }
 
         protected List<HandlerItem> handlerItems;
@@ -42,13 +42,13 @@ namespace TerrariaLauncher.Services.GameCoordinator.Proxy.Events
             this.logger = logger;
         }
 
-        public void Register(Handler<TSender, TArgs> handler, int priority = 10, bool skipHandled = false)
+        public void Register(Handler<TSender, TArgs> handler, int priority = 10, bool bypassHandled = false)
         {
             this.handlerItems.Add(new HandlerItem()
             {
                 Handler = handler,
                 Priority = priority,
-                SkipHandled = skipHandled
+                BypassHandled = bypassHandled
             });
 
             this.handlerItems = this.handlerItems.OrderBy(handlerItem => handlerItem.Priority).ToList();
@@ -66,7 +66,7 @@ namespace TerrariaLauncher.Services.GameCoordinator.Proxy.Events
                 if (args.CancellationToken.IsCancellationRequested) break;
                 try
                 {
-                    if (!args.Handled || handlerItem.SkipHandled)
+                    if (!args.Handled || handlerItem.BypassHandled)
                     {
                         await handlerItem.Handler(sender, args);
                     }
@@ -87,7 +87,7 @@ namespace TerrariaLauncher.Services.GameCoordinator.Proxy.Events
         {
             public int Priority { get; set; }
             public Handler<TArgs> Handler { get; set; }
-            public bool SkipHandled { get; set; }
+            public bool BypassHandled { get; set; }
         }
 
         protected List<HandlerItem> handlerItems;
@@ -98,13 +98,13 @@ namespace TerrariaLauncher.Services.GameCoordinator.Proxy.Events
             this.logger = logger;
         }
 
-        public void Register(Handler<TArgs> handler, int priority = 10, bool skipHandled = false)
+        public void Register(Handler<TArgs> handler, int priority = 10, bool bypassHandled = false)
         {
             this.handlerItems.Add(new HandlerItem()
             {
                 Handler = handler,
                 Priority = priority,
-                SkipHandled = skipHandled
+                BypassHandled = bypassHandled
             });
 
             this.handlerItems = this.handlerItems.OrderBy(handlerItem => handlerItem.Priority).ToList();
@@ -122,7 +122,7 @@ namespace TerrariaLauncher.Services.GameCoordinator.Proxy.Events
                 if (args.CancellationToken.IsCancellationRequested) break;
                 try
                 {
-                    if (!args.Handled || handlerItem.SkipHandled)
+                    if (!args.Handled || handlerItem.BypassHandled)
                     {
                         await handlerItem.Handler(args);
                     }

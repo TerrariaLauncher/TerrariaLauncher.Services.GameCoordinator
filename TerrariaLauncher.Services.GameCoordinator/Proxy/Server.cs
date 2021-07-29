@@ -74,9 +74,10 @@ namespace TerrariaLauncher.Services.GameCoordinator.Proxy
                 }
 
                 var interceptor = scope.ServiceProvider.GetRequiredService<Interceptor>();
-                _ = interceptor.ProcessPackets(interceptorTokenSource.Token);
+                var interceptTask = interceptor.ProcessPackets(interceptorTokenSource.Token);
                 Interlocked.Increment(ref this.numConnectingClients);
-                _ = terrariaClient.Completion.ContinueWith(task =>
+                _ = Task.WhenAny(interceptTask, terrariaClient.Completion)
+                    .ContinueWith(task =>
                     {
                         interceptorTokenSource.Cancel();
                         interceptorTokenSource.Dispose();

@@ -37,12 +37,8 @@ namespace TerrariaLauncher.Services.GameCoordinator.Proxy
             this.terrariaPacketPool = terrariaPacketPool;
             this.terrariaClientSocketEvents = terrariaClientSocketEvents;
 
-            var channelOptions = new BoundedChannelOptions(100)
-            {
-                FullMode = BoundedChannelFullMode.Wait
-            };
-            this.ReceivingPacketChannel = Channel.CreateBounded<TerrariaPacket>(channelOptions);
-            this.SendingPacketChannel = Channel.CreateBounded<TerrariaPacket>(channelOptions);
+            this.ReceivingPacketChannel = Channel.CreateUnbounded<TerrariaPacket>();
+            this.SendingPacketChannel = Channel.CreateUnbounded<TerrariaPacket>();
         }
 
         public IPEndPoint IPEndPoint { get; protected set; }

@@ -10,10 +10,11 @@ using TerrariaLauncher.Services.GameCoordinator.Packets.Payloads.Structures;
 
 namespace TerrariaLauncher.Services.GameCoordinator.Packets.Payloads
 {
+    [PacketStructure(OpCode: PacketOpCode.Disconnect)]
     class Disconnect: PacketStructure
     {
-        public NetworkText Reason { get; set; }
-
         public override PacketOpCode OpCode => PacketOpCode.Disconnect;
+
+        public NetworkText Reason { get; set; }
     }
 }

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Buffers;
 using System.Buffers.Binary;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO.Pipelines;
 using System.Linq;
@@ -12,7 +13,7 @@ using TerrariaLauncher.Services.GameCoordinator.Pools;
 
 namespace TerrariaLauncher.Services.GameCoordinator
 {
-    class TerrariaPacket: IDisposable
+    class TerrariaPacket : IDisposable
     {
         private static readonly HashSet<byte> opByteValues = new HashSet<byte>();
 
@@ -53,11 +54,17 @@ namespace TerrariaLauncher.Services.GameCoordinator
             this.structureDeserializerDispatcher = structureDeserializerDispatcher;
         }
 
-        public ref readonly Memory<byte> Buffer
+        /// <summary>
+        /// All raw data of the whole packet, include packet header (length, opcode) and payload.
+        /// </summary>
+        public Memory<byte> Buffer
         {
-            get => ref this.bufferWrapper;
+            get => this.bufferWrapper;
         }
 
+        /// <summary>
+        /// Raw data of payload only.
+        /// </summary>
         public Memory<byte> Payload
         {
             get => this.bufferWrapper.Slice(PayloadPosition);
@@ -154,9 +161,34 @@ namespace TerrariaLauncher.Services.GameCoordinator
             await pipe.Reader.CompleteAsync().ConfigureAwait(false);
         }
 
-        public async Task<TStructure> DeserializePayload<TStructure>(CancellationToken cancellationToken = default)
-        where TStructure : IStructure
+        private static ConcurrentDictionary<Type, PacketOpCode> CachedOpCode = new ConcurrentDictionary<Type, PacketOpCode>();
+        private static PacketOpCode GetOpCode(Type type)
         {
+            if (!type.IsAssignableTo(typeof(IPacketStructure)))
+            {
+                throw new ArgumentException($"$The type must be derivered from {nameof(IPacketStructure)}.");
+            }
+
+            var packetStructureAttribute = Attribute.GetCustomAttribute(type, typeof(PacketStructureAttribute), false) as PacketStructureAttribute;
+            if (packetStructureAttribute is not null)
+            {
+                return packetStructureAttribute.OpCode;
+            }
+            else
+            {
+                return (Activator.CreateInstance(type) as IPacketStructure).OpCode;
+            }
+        }
+
+        public async Task<TStructure> DeserializePayload<TStructure>(CancellationToken cancellationToken = default)
+            where TStructure : IPacketStructure, new()
+        {
+            var structureOpCode = CachedOpCode.GetOrAdd(typeof(TStructure), GetOpCode);
+            if (structureOpCode != this.OpCode)
+            {
+                throw new InvalidOperationException($"Op-code of {nameof(TStructure)} did not match with op-code of the packet.");
+            }
+
             var pipe = new Pipe();
             await pipe.Writer.WriteAsync(this.Payload, cancellationToken).ConfigureAwait(false);
             await pipe.Writer.CompleteAsync().ConfigureAwait(false);

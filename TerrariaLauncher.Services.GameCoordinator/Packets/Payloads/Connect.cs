@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.IO;
 using System.IO.Pipelines;
 using System.Linq;
@@ -10,6 +9,8 @@ using TerrariaLauncher.Services.GameCoordinator.Packets.Payloads.Commons;
 
 namespace TerrariaLauncher.Services.GameCoordinator.Packets.Payloads
 {
+
+    [PacketStructure(OpCode: PacketOpCode.Connect)]
     class Connect : PacketStructure
     {
         public override PacketOpCode OpCode => PacketOpCode.Connect;
