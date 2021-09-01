@@ -8,7 +8,7 @@ using TerrariaLauncher.Commons.Database;
 using TerrariaLauncher.Commons.Database.CQS.Query;
 using TerrariaLauncher.Commons.Database.Extensions;
 
-namespace TerrariaLauncher.Services.GameCoordinator.Hub.Database.Queries.Handlers
+namespace TerrariaLauncher.Services.GameCoordinator.Hub.Database.Queries
 {
     class GetBanByIdentityHandler : QueryHandler<GetBanByIdentityQuery, GetBanByIdentityQueryResult>
     {
@@ -27,7 +27,7 @@ namespace TerrariaLauncher.Services.GameCoordinator.Hub.Database.Queries.Handler
 
         protected override async Task<GetBanByIdentityQueryResult> ImplementationAsync(GetBanByIdentityQuery query, CancellationToken cancellationToken)
         {
-            var uow = await this.unitOfWorkFactory.CreateAsync().ConfigureAwait(false);
+            var uow = await unitOfWorkFactory.CreateAsync().ConfigureAwait(false);
             await using (uow.ConfigureAwait(false))
             {
                 string sql = "SELECT * FROM bans " +

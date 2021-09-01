@@ -6,7 +6,6 @@ using System.Threading.Tasks;
 using TerrariaLauncher.Commons.Database.CQS.Query;
 using TerrariaLauncher.Protos.Services.GameCoordinator.Hub;
 using TerrariaLauncher.Services.GameCoordinator.Hub.Database.Queries;
-using TerrariaLauncher.Services.GameCoordinator.Hub.Database.Queries.Handlers;
 using TerrariaLauncher.Services.GameCoordinator.Hub.Services;
 
 namespace TerrariaLauncher.Services.GameCoordinator.Hub.GrpcServices

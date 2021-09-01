@@ -10,7 +10,7 @@ using TerrariaLauncher.Commons.Database.Extensions;
 using TerrariaLauncher.Commons.Database.CQS.Query;
 using Microsoft.Extensions.Logging;
 
-namespace TerrariaLauncher.Services.GameCoordinator.Hub.Database.Queries.Handlers
+namespace TerrariaLauncher.Services.GameCoordinator.Hub.Database.Queries
 {
     class GetUserByNameHandler : QueryHandler<GetUserByNameQuery, GetUserByNameQueryResult>
     {
@@ -30,7 +30,7 @@ namespace TerrariaLauncher.Services.GameCoordinator.Hub.Database.Queries.Handler
 
         protected override async Task<GetUserByNameQueryResult> ImplementationAsync(GetUserByNameQuery query, CancellationToken cancellationToken)
         {
-            var uow = await this.unitOfWorkFactory.CreateAsync().ConfigureAwait(false);
+            var uow = await unitOfWorkFactory.CreateAsync().ConfigureAwait(false);
             await using (uow.ConfigureAwait(false))
             {
                 var command = uow.Connection.CreateCommand();

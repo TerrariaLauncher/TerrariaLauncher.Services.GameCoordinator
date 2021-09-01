@@ -9,13 +9,13 @@ using TerrariaLauncher.Commons.Database.CQS.Query;
 using TerrariaLauncher.Commons.DomainObjects;
 using TerrariaLauncher.Commons.Database.Extensions;
 
-namespace TerrariaLauncher.Services.GameCoordinator.Hub.Database.Queries.Handlers
+namespace TerrariaLauncher.Services.GameCoordinator.Hub.Database.Queries
 {
     class GetUserByUUIDHandler : QueryHandler<GetUserByUUIDQuery, GetUserByUUIDQueryResult>
     {
         IUnitOfWorkFactory unitOfWorkFactory;
         public GetUserByUUIDHandler(
-            ILogger<QueryHandler<GetUserByUUIDQuery, GetUserByUUIDQueryResult>> logger, 
+            ILogger<QueryHandler<GetUserByUUIDQuery, GetUserByUUIDQueryResult>> logger,
             IUnitOfWorkFactory unitOfWorkFactory) : base(logger)
         {
             this.unitOfWorkFactory = unitOfWorkFactory;
@@ -28,7 +28,7 @@ namespace TerrariaLauncher.Services.GameCoordinator.Hub.Database.Queries.Handler
 
         protected override async Task<GetUserByUUIDQueryResult> ImplementationAsync(GetUserByUUIDQuery query, CancellationToken cancellationToken)
         {
-            var uow = await this.unitOfWorkFactory.CreateAsync().ConfigureAwait(false);
+            var uow = await unitOfWorkFactory.CreateAsync().ConfigureAwait(false);
             await using (uow.ConfigureAwait(false))
             {
                 var command = uow.Connection.CreateCommand();
