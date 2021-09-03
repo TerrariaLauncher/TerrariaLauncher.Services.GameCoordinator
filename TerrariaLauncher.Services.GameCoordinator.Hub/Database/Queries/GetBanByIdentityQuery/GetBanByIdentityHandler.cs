@@ -20,11 +20,6 @@ namespace TerrariaLauncher.Services.GameCoordinator.Hub.Database.Queries
             this.unitOfWorkFactory = unitOfWorkFactory;
         }
 
-        protected override GetBanByIdentityQueryResult Implementation(GetBanByIdentityQuery query)
-        {
-            throw new NotImplementedException();
-        }
-
         protected override async Task<GetBanByIdentityQueryResult> ImplementationAsync(GetBanByIdentityQuery query, CancellationToken cancellationToken)
         {
             var uow = await unitOfWorkFactory.CreateAsync().ConfigureAwait(false);

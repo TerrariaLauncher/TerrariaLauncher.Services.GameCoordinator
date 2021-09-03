@@ -21,11 +21,6 @@ namespace TerrariaLauncher.Services.GameCoordinator.Hub.Database.Queries
             this.unitOfWorkFactory = unitOfWorkFactory;
         }
 
-        protected override GetUserByUUIDQueryResult Implementation(GetUserByUUIDQuery query)
-        {
-            throw new NotImplementedException();
-        }
-
         protected override async Task<GetUserByUUIDQueryResult> ImplementationAsync(GetUserByUUIDQuery query, CancellationToken cancellationToken)
         {
             var uow = await unitOfWorkFactory.CreateAsync().ConfigureAwait(false);

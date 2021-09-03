@@ -11,6 +11,10 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TerrariaLauncher.Commons.Ba
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TerrariaLauncher.Commons", "..\TerrariaLauncher.Commons\TerrariaLauncher.Commons.csproj", "{8B5A779F-03DA-4FE8-ACE5-EC44B4C6405D}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TerrariaLauncher.Commons.EventBus", "..\TerrariaLauncher.Commons.EventBus\TerrariaLauncher.Commons.EventBus\TerrariaLauncher.Commons.EventBus.csproj", "{A159588E-0433-46BC-BB26-4B29E3A59948}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TerrariaLauncher.Commons.EventBusRabbitMQ", "..\TerrariaLauncher.Commons.EventBus\TerrariaLauncher.Commons.EventBusRabbitMQ\TerrariaLauncher.Commons.EventBusRabbitMQ.csproj", "{BD81ACE7-6365-4AE9-9D6D-0B424C0B3162}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -33,6 +37,14 @@ Global
 		{8B5A779F-03DA-4FE8-ACE5-EC44B4C6405D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{8B5A779F-03DA-4FE8-ACE5-EC44B4C6405D}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{8B5A779F-03DA-4FE8-ACE5-EC44B4C6405D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A159588E-0433-46BC-BB26-4B29E3A59948}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A159588E-0433-46BC-BB26-4B29E3A59948}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A159588E-0433-46BC-BB26-4B29E3A59948}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A159588E-0433-46BC-BB26-4B29E3A59948}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BD81ACE7-6365-4AE9-9D6D-0B424C0B3162}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BD81ACE7-6365-4AE9-9D6D-0B424C0B3162}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BD81ACE7-6365-4AE9-9D6D-0B424C0B3162}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BD81ACE7-6365-4AE9-9D6D-0B424C0B3162}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

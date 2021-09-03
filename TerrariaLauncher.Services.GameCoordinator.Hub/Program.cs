@@ -29,29 +29,17 @@ namespace TerrariaLauncher.Services.GameCoordinator.Hub
                 var hostUrl = configuration["urls"].Trim().Split(';', 1, StringSplitOptions.TrimEntries)[0];
                 var hostUri = new Uri(hostUrl);
 
+                var registration = configuration.GetSection("ConsulServiceRegister").Get<Commons.Consul.API.DTOs.Registration>();
                 var command = new RegisterServiceCommand()
                 {
                     ReplaceExistingChecks = true,
-                    Registration = new Commons.Consul.API.DTOs.Registration()
-                    {
-                        ID = "TerrariaLauncher.Services.GameCoordinator.Hub",
-                        Name = "TerrariaLauncher.Services.GameCoordinator.Hub",
-                        
-                        Address = hostUri.Host,
-                        Port = hostUri.Port,
-                        Check= new Commons.Consul.API.DTOs.Check()
-                        {
-                            ID = "TerrariaLauncher.Services.GameCoordinator.Hub",
-                            Name = "TerrariaLauncher.Services.GameCoordinator.Hub",
-                            TCP = hostUri.Authority,
-                            Interval = "10s",
-                            Timeout = "5s",
-                            DeregisterCriticalServiceAfter = "1m"
-                        }
-                    }
+                    Registration = registration
                 };
+                command.Registration.Address = hostUri.Host;
+                command.Registration.Port = hostUri.Port;
+                command.Registration.Check.TCP = hostUri.Authority;
 
-                await consulCommandDispatcher.Dispatch<RegisterServiceCommand, RegisterServiceCommandResult>(command);                    
+                await consulCommandDispatcher.Dispatch<RegisterServiceCommand, RegisterServiceCommandResult>(command);
                 await host.RunAsync();
             }
         }
@@ -70,7 +58,7 @@ namespace TerrariaLauncher.Services.GameCoordinator.Hub
 
                     var consulHost = new Commons.Consul.ConsulHostConfiguration();
                     tempConfigurationRoot.GetSection("Consul").Bind(consulHost);
-                    var consulConfigurationKey = tempConfigurationRoot["ConsulConfigurationProvider:Key"];
+                    var consulConfigurationKey = tempConfigurationRoot["ConsulConfiguration:Key"];
 
                     configurationBuilder.UseConsulConfiguration(consulHost, consulConfigurationKey);
                 })

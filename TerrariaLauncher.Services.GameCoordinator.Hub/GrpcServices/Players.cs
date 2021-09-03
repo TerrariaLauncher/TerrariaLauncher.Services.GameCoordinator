@@ -25,7 +25,7 @@ namespace TerrariaLauncher.Services.GameCoordinator.Hub.GrpcServices
             {
                 Name = request.Name,
                 EndPoint = IPEndPoint.Parse(request.EndPoint),
-                GameCoordinatorId = request.GameCoordinatorId
+                GameCoordinatorProxyId = request.GameCoordinatorId
             };
             
             if (!this.playing.Join(player))

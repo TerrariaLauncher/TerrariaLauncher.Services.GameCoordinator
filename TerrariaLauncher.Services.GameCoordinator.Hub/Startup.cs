@@ -11,8 +11,12 @@ using System.Reflection;
 using System.Threading.Tasks;
 using TerrariaLauncher.Commons.Database;
 using TerrariaLauncher.Commons.Database.CQS.Command;
+using TerrariaLauncher.Commons.Database.CQS.Extensions;
 using TerrariaLauncher.Commons.Database.CQS.Query;
 using TerrariaLauncher.Commons.DomainObjects;
+using TerrariaLauncher.Commons.EventBusRabbitMQ;
+using TerrariaLauncher.Commons.MediatorService;
+using TerrariaLauncher.Services.GameCoordinator.Hub.Services;
 
 namespace TerrariaLauncher.Services.GameCoordinator.Hub
 {
@@ -24,8 +28,6 @@ namespace TerrariaLauncher.Services.GameCoordinator.Hub
             this.configuration = configuration;
         }
 
-        // This method gets called by the runtime. Use this method to add services to the container.
-        // For more information on how to configure your application, visit https://go.microsoft.com/fwlink/?LinkID=398940
         public void ConfigureServices(IServiceCollection services)
         {
             services.AddGrpc();
@@ -37,32 +39,29 @@ namespace TerrariaLauncher.Services.GameCoordinator.Hub
                 var connectionString = configuration.GetConnectionString("Database");
                 return new UnitOfWorkFactory(connectionString);
             });
-            services.AddSingleton<IQueryDispatcher, QueryDispatcher>();
-            services.AddSingleton<ICommandDispatcher, CommandDispatcher>();
-            var assembly = Assembly.GetExecutingAssembly();
-            foreach (var type in assembly.GetTypes())
+
+            services.AddDatabaseCQS().AddHandlers(Assembly.GetExecutingAssembly());
+            services.AddSingleton<RunningProxies>();
+            services.AddSingleton<Playing>();
+            services.AddSingleton<RunningAgents>();
+            services.AddEventBusRabbitMQ(new EventBusRabbitMQConfiguration()
             {
-                if (!type.IsClass) continue;
-                if (type.IsAbstract) continue;
-
-                Type typeInterface;
-                if ((typeInterface = type.GetInterface(typeof(IQueryHandler<,>).Name)) is not null)
-                {
-                    services.AddSingleton(typeInterface, type);
-                }
-                else if ((typeInterface = type.GetInterface(typeof(ICommandHandler<,>).Name)) is not null)
-                {
-                    services.AddSingleton(typeInterface, type);
-                }
-            }
-
-            services.Configure<Dictionary<string, Instance>>(this.configuration.GetSection("TerrariaServerInstances"));
-
-            services.AddSingleton<Services.Playing>();
+                Host = configuration.GetValue<string>("EventBusRabbitMQ:Host"),
+                Port = configuration.GetValue<int>("EventBusRabbitMQ:Port"),
+                UserName = configuration.GetValue<string>("EventBusRabbitMQ:UserName"),
+                Password = configuration.GetValue<string>("EventBusRabbitMQ:Password"),
+                ExchangeName = configuration["EventBusRabbitMQ:ExchangeName"],
+                QueueName = configuration.GetValue<string>("EventBusRabbitMQ:QueueName"),
+                RetryCount = configuration.GetValue<int>("EventBusRabbitMQ:RetryCount")
+            });
+            services.AddMediatorService().AddMediatorHandlers(Assembly.GetExecutingAssembly());
         }
 
-        // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
-        public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
+        public void Configure(
+            IHostApplicationLifetime host,
+            IApplicationBuilder app, IWebHostEnvironment env,
+            RunningProxies runningProxies,
+            RunningAgents runningAgents)
         {
             if (env.IsDevelopment())
             {
@@ -78,6 +77,11 @@ namespace TerrariaLauncher.Services.GameCoordinator.Hub
                 endpoints.MapGrpcService<GrpcServices.Users>();
                 endpoints.MapGrpcService<GrpcServices.Bans>();
             });
+
+            host.ApplicationStarted.Register(runningProxies.Start);
+            host.ApplicationStopping.Register(runningProxies.Stop);
+            host.ApplicationStarted.Register(runningAgents.Start);
+            host.ApplicationStopping.Register(runningAgents.Stop);
         }
     }
 }

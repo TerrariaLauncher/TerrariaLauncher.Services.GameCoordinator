@@ -7,37 +7,50 @@ using System.Threading.Tasks;
 using TerrariaLauncher.Commons.Database.CQS.Query;
 using TerrariaLauncher.Commons.DomainObjects;
 using TerrariaLauncher.Protos.Services.GameCoordinator.Hub;
+using TerrariaLauncher.Services.GameCoordinator.Hub.Services;
 
 namespace TerrariaLauncher.Services.GameCoordinator.Hub.GrpcServices
 {
     class Instances : TerrariaLauncher.Protos.Services.GameCoordinator.Hub.Instances.InstancesBase
     {
-        Dictionary<string, Instance> instances;
         IQueryDispatcher queryDispatcher;
-
-        public Instances(IOptionsSnapshot<Dictionary<string, Instance>> instancesOptions, IQueryDispatcher queryDispatcher)
+        RunningAgents runningAgents;
+        public Instances(RunningAgents runningAgents,
+            IQueryDispatcher queryDispatcher)
         {
-            this.instances = instancesOptions.Value;
+            this.runningAgents = runningAgents;
             this.queryDispatcher = queryDispatcher;
+        }
+
+        public override Task<CountPlayerResponse> CountPlayer(CountPlayerRequest request, ServerCallContext context)
+        {
+            return base.CountPlayer(request, context);
         }
 
         public override Task<GetInstancesResponse> GetInstances(GetInstancesRequest request, ServerCallContext context)
         {
             var response = new GetInstancesResponse();
-            foreach (var instance in instances)
+            foreach (var (id, agent) in runningAgents.Agents)
             {
                 response.Instances.Add(new GetInstancesResponse.Types.Instance()
                 {
-                    Id = instance.Value.Id,
-                    Name = instance.Value.Name,
-                    Realm = instance.Value.Realm,
-                    Enabled = instance.Value.Enabled,
-                    Host = instance.Value.Host,
-                    Port = instance.Value.Port,
-                    Version = instance.Value.Version
+                    Id = agent.Instance.Id,
+                    Name = agent.Instance.Name,
+                    Realm = agent.Instance.Realm,
+                    Enabled = agent.Instance.Enabled,
+                    Host = agent.Instance.Host,
+                    Port = agent.Instance.Port,
+                    MaxSlots = agent.Instance.MaxSlots,
+                    Platform = agent.Instance.Platform,
+                    Version = agent.Instance.Version
                 });
             }
             return Task.FromResult(response);
+        }
+
+        public override Task<InstanceUpResponse> InstanceUp(InstanceUpRequest request, ServerCallContext context)
+        {
+            return Task.FromResult(new InstanceUpResponse() { });
         }
     }
 }

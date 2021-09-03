@@ -7,8 +7,11 @@ using System;
 using System.Reflection;
 using System.Threading.Tasks;
 using TerrariaLauncher.Commons.Consul;
+using TerrariaLauncher.Commons.Consul.API.Agent.Services.Commands;
+using TerrariaLauncher.Commons.Consul.API.Commons;
 using TerrariaLauncher.Commons.Consul.ConfigurationProvider;
 using TerrariaLauncher.Commons.Consul.Extensions;
+using TerrariaLauncher.Commons.ConsulHelpers;
 using TerrariaLauncher.Services.GameCoordinator.Packets.Payloads;
 using TerrariaLauncher.Services.GameCoordinator.Packets.Payloads.BitFlags;
 using TerrariaLauncher.Services.GameCoordinator.Packets.Payloads.Commons;
@@ -31,6 +34,24 @@ namespace TerrariaLauncher.Services.GameCoordinator
                 await LoadPlugins(host.Services);
                 var server = host.Services.GetRequiredService<Server>();
                 await server.Start();
+
+                var configuration = host.Services.GetRequiredService<IConfiguration>();
+                var consulServiceRegister = configuration.GetSection("ConsulServiceRegister").Get<Commons.Consul.API.DTOs.Registration>();
+
+                var hostUrl = configuration["urls"].Trim().Split(';', 1, StringSplitOptions.TrimEntries)[0];
+                var hostUri = new Uri(hostUrl);
+                consulServiceRegister.Address ??= hostUri.Host;
+                consulServiceRegister.Port ??= hostUri.Port;
+                consulServiceRegister.Check.TCP = hostUri.Authority;
+                var consulCommandDispatcher = host.Services.GetRequiredService<IConsulCommandDispatcher>();
+                var command = new RegisterServiceCommand()
+                {
+                    ReplaceExistingChecks = true,
+                    Registration = consulServiceRegister
+                };
+
+                await consulCommandDispatcher.Dispatch<RegisterServiceCommand, RegisterServiceCommandResult>(command);
+
                 await host.RunAsync();
             }
         }
@@ -117,6 +138,10 @@ namespace TerrariaLauncher.Services.GameCoordinator
             serviceCollection.AddSingleton<ObjectPool<PacketHandlerArgs>>();
             serviceCollection.AddSingleton<IObjectPoolPolicy<PacketHandlerArgs>, PacketHandlerArgsPoolPolicy>();
 
+            serviceCollection.AddScoped<TerrariaClient>();
+            serviceCollection.AddScoped<InstanceClient>();
+            serviceCollection.AddScoped<Interceptor>();
+
             serviceCollection.AddSingleton<InterceptorEvents>();
             serviceCollection.AddSingleton<TerrariaClientEvents>();
             serviceCollection.AddSingleton<InstanceClientEvents>();
@@ -124,30 +149,32 @@ namespace TerrariaLauncher.Services.GameCoordinator
             serviceCollection.AddSingleton<NetModuleEvents>();
             serviceCollection.AddSingleton<TextCommands>();
 
-            var gameCoordinatorHubUrl = hostBuilderContext.Configuration["Services:TerrariaLauncher.Services.GameCoordinator.Hub:Url"];
-            serviceCollection.AddGrpcClient<TerrariaLauncher.Protos.Services.GameCoordinator.Hub.Instances.InstancesClient>(options =>
+            var consulHost = hostBuilderContext.Configuration.GetSection("Consul").Get<ConsulHostConfiguration>();
+            using (var consulSync = new ConsulSync(consulHost))
             {
-                options.Address = new Uri(gameCoordinatorHubUrl);
-            });
-            serviceCollection.AddGrpcClient<TerrariaLauncher.Protos.Services.GameCoordinator.Hub.Players.PlayersClient>(options =>
-            {
-                options.Address = new Uri(gameCoordinatorHubUrl);
-            });
-            serviceCollection.AddGrpcClient<TerrariaLauncher.Protos.Services.GameCoordinator.Hub.Users.UsersClient>(options =>
-            {
-                options.Address = new Uri(gameCoordinatorHubUrl);
-            });
-            serviceCollection.AddGrpcClient<TerrariaLauncher.Protos.Services.GameCoordinator.Hub.Bans.BansClient>(options =>
-            {
-                options.Address = new Uri(gameCoordinatorHubUrl);
-            });
+                var hubEndPoint = consulSync.GetServiceEndPoint(
+                    hostBuilderContext.Configuration["Services:TerrariaLauncher.Services.GameCoordinator.Hub:ConsulServiceId"]
+                );
+                var hubUrl = $"http://{hubEndPoint.Address}:{hubEndPoint.Port}";
 
-            serviceCollection.AddScoped<TerrariaClient>();
-            serviceCollection.AddScoped<InstanceClient>();
-            serviceCollection.AddScoped<Interceptor>();
+                serviceCollection.AddGrpcClient<TerrariaLauncher.Protos.Services.GameCoordinator.Hub.Instances.InstancesClient>(options =>
+                {
+                    options.Address = new Uri(hubUrl);
+                });
+                serviceCollection.AddGrpcClient<TerrariaLauncher.Protos.Services.GameCoordinator.Hub.Players.PlayersClient>(options =>
+                {
+                    options.Address = new Uri(hubUrl);
+                });
+                serviceCollection.AddGrpcClient<TerrariaLauncher.Protos.Services.GameCoordinator.Hub.Users.UsersClient>(options =>
+                {
+                    options.Address = new Uri(hubUrl);
+                });
+                serviceCollection.AddGrpcClient<TerrariaLauncher.Protos.Services.GameCoordinator.Hub.Bans.BansClient>(options =>
+                {
+                    options.Address = new Uri(hubUrl);
+                });
+            }
 
-            var consulHost = new ConsulHostConfiguration();
-            hostBuilderContext.Configuration.GetSection("Consul").Bind(consulHost);
             serviceCollection.AddConsulService(consulHost);
         }
 

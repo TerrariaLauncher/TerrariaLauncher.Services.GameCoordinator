@@ -3,15 +3,17 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
+using System.Threading;
 using System.Threading.Tasks;
 using TerrariaLauncher.Commons.DomainObjects;
+using TerrariaLauncher.Commons.MediatorService;
 
 namespace TerrariaLauncher.Services.GameCoordinator.Hub.Services
 {
     public class GameCoordinatorPlayer
     {
         public string Name { get; set; }
-        public string GameCoordinatorId { get; set; }
+        public string GameCoordinatorProxyId { get; set; }
         public User User { get; set; }
         public IPEndPoint EndPoint { get; set; }
     }
@@ -44,6 +46,17 @@ namespace TerrariaLauncher.Services.GameCoordinator.Hub.Services
         public bool Get(string name, out GameCoordinatorPlayer player)
         {
             return this.players.TryGetValue(name, out player);
+        }
+
+        public void RemovePlayersBelongToProxyId(string proxyId)
+        {
+            foreach (var (playerName, player) in this.players)
+            {
+                if (player.GameCoordinatorProxyId == proxyId)
+                {
+                    this.players.TryRemove(playerName, out _);
+                }
+            }
         }
     }
 }
