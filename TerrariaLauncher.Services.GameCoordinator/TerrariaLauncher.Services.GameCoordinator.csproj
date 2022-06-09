@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
-    <TargetFramework>net5.0</TargetFramework>
+    <TargetFramework>net6.0</TargetFramework>
     <RootNamespace>TerrariaLauncher.Services.GameCoordinator</RootNamespace>
   </PropertyGroup>
 
@@ -20,11 +20,6 @@
   <ItemGroup>
     <PackageReference Include="Grpc.AspNetCore" Version="2.38.0" />
     <PackageReference Include="RabbitMQ.Client" Version="6.2.2" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="..\..\TerrariaLauncher.Commons.Base\TerrariaLauncher.Commons.Base.csproj" />
-    <ProjectReference Include="..\..\TerrariaLauncher.Commons\TerrariaLauncher.Commons.csproj" />
   </ItemGroup>
 
 </Project>

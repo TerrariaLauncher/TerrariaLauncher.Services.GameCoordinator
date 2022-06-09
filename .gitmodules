@@ -1,0 +1,3 @@
+[submodule "References/TerrariaLauncher.Commons"]
+	path = References/TerrariaLauncher.Commons
+	url = git@github.com:TerrariaLauncher/TerrariaLauncher.Commons.git

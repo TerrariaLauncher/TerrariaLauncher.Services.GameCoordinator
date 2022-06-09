@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
-    <TargetFramework>net5.0</TargetFramework>
+    <TargetFramework>net6.0</TargetFramework>
     <RootNamespace>TerrariaLauncher.Services.GameCoordinator.Hub</RootNamespace>
   </PropertyGroup>
 
@@ -24,10 +24,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\TerrariaLauncher.Commons.Base\TerrariaLauncher.Commons.Base.csproj" />
     <ProjectReference Include="..\..\TerrariaLauncher.Commons.EventBus\TerrariaLauncher.Commons.EventBusRabbitMQ\TerrariaLauncher.Commons.EventBusRabbitMQ.csproj" />
     <ProjectReference Include="..\..\TerrariaLauncher.Commons.EventBus\TerrariaLauncher.Commons.EventBus\TerrariaLauncher.Commons.EventBus.csproj" />
-    <ProjectReference Include="..\..\TerrariaLauncher.Commons\TerrariaLauncher.Commons.csproj" />
   </ItemGroup>
 
   <ItemGroup>
